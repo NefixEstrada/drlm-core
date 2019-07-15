@@ -1,0 +1,6 @@
+[grpc]
+cert_path = "/tls/godev/godev.crt"
+key_path = "/tls/godev/godev.key"
+
+[log]
+file = "drlm-core.log"

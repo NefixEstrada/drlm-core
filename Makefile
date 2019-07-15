@@ -7,7 +7,7 @@ install:
 build:
 	go build drlm-core.go
 test:
-	go test -v ./...
+	go test -cover ./...
 clean:
 	go clean
 	rm -f $(BINARY_NAME)
