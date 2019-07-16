@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/brainupdaters/drlm-core/cfg"
 
@@ -22,13 +23,17 @@ func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.Str
 }
 
 // Serve starts the DRLM Core GRPC server
-func Serve() {
+func Serve(ctx context.Context) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Config.GRPC.Port))
 	if err != nil {
 		log.Fatalf("error listening at port %d: %v", cfg.Config.GRPC.Port, err)
 	}
 
-	var grpcServer *gRPC.Server
+	var opts = []gRPC.ServerOption{
+		gRPC.UnaryInterceptor(unaryInterceptor),
+		gRPC.StreamInterceptor(streamInterceptor),
+	}
+
 	if cfg.Config.GRPC.TLS {
 		creds, err := credentials.NewServerTLSFromFile(
 			cfg.Config.GRPC.CertPath,
@@ -38,23 +43,24 @@ func Serve() {
 			log.Fatalf("error loading the TLS credentials: %v", err)
 		}
 
-		grpcServer = gRPC.NewServer(
-			gRPC.UnaryInterceptor(unaryInterceptor),
-			gRPC.StreamInterceptor(streamInterceptor),
-			gRPC.Creds(creds),
-		)
-
-	} else {
-		grpcServer = gRPC.NewServer(
-			gRPC.UnaryInterceptor(unaryInterceptor),
-			gRPC.StreamInterceptor(streamInterceptor),
-		)
+		opts = append(opts, gRPC.Creds(creds))
 	}
 
+	grpcServer := gRPC.NewServer(opts...)
 	drlm.RegisterDRLMServer(grpcServer, &CoreServer{})
 
 	log.Infof("DRLM Core listenning at port :%d", cfg.Config.GRPC.Port)
-	if err = grpcServer.Serve(lis); err != nil {
-		log.Fatalf("error serving DRLM Core GRPC: %v", err)
+	go func() {
+		if err = grpcServer.Serve(lis); err != nil {
+			if err != gRPC.ErrServerStopped {
+				log.Fatalf("error serving DRLM Core GRPC: %v", err)
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		grpcServer.GracefulStop()
+		ctx.Value("wg").(*sync.WaitGroup).Done()
 	}
 }
