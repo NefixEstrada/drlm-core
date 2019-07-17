@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -28,6 +29,7 @@ func Main() {
 
 	select {
 	case <-stop:
+		fmt.Println("")
 		log.Info("stopping DRLM Core...")
 
 		cancel()
