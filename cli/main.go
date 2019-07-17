@@ -31,8 +31,8 @@ func Main() {
 		log.Info("stopping DRLM Core...")
 
 		cancel()
-		db.DB.Close()
-
 		wg.Wait()
+
+		db.DB.Close()
 	}
 }
