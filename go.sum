@@ -13,9 +13,6 @@ github.com/apache/thrift v0.12.0/go.mod h1:cp2SuWMxlEZw2r+iP2GNCdIi4C1qmUzdZFSVb
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
-github.com/brainupdaters/drlm v1.1.1 h1:TSPU0xDZAhmL9hV46/ZJbwwKXN2I4luySHliWtfpn0Y=
-github.com/brainupdaters/drlm-common v0.0.0-20190716062537-0ec377ba34f0 h1:PJMy36Qhq/IHclCs5f/kidry+2J9jvtrXxV7mWvyxmE=
-github.com/brainupdaters/drlm-common v0.0.0-20190716062537-0ec377ba34f0/go.mod h1:/640kkF6Ie6GSou9oS+Fb/git8szjk0K7DcelDigiR0=
 github.com/brainupdaters/drlm-common v0.0.0-20190716093027-7214172cb8c8 h1:wX8XV/IHIFczuqvTFGqdM07BYHpqlL4pXzgg8Iyca6A=
 github.com/brainupdaters/drlm-common v0.0.0-20190716093027-7214172cb8c8/go.mod h1:/640kkF6Ie6GSou9oS+Fb/git8szjk0K7DcelDigiR0=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
