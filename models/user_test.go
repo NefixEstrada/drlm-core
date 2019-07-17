@@ -6,8 +6,8 @@ import (
 
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
-	mocket "github.com/selvatico/go-mocket"
 
+	mocket "github.com/selvatico/go-mocket"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,6 +61,6 @@ func TestUserBeforeSave(t *testing.T) {
 			Password: "",
 		}
 
-		assert.EqualError(u.BeforeSave(), "password too weak: the password requires, at least, a length of 8 characters")
+		assert.EqualError(u.BeforeSave(), "the password requires, at least, a length of 8 characters")
 	})
 }

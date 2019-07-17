@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,5 +33,29 @@ func TestUserCheckPwdStrength(t *testing.T) {
 	t.Run("should return an error if the password hasn't a special character", func(t *testing.T) {
 		u := User{Password: "4sdfzxÇv"}
 		assert.EqualError(u.checkPwdStrength(), "the password requires, at least, an special character")
+	})
+}
+
+func TestIsErrUsrPwdStrength(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should return true for a password length error", func(t *testing.T) {
+		assert.True(IsErrUsrPwdStrength(errUsrPwdLength))
+	})
+
+	t.Run("should return true for a no upper character error", func(t *testing.T) {
+		assert.True(IsErrUsrPwdStrength(errUsrPwdNoUpperChar))
+	})
+
+	t.Run("should return true for a no number error", func(t *testing.T) {
+		assert.True(IsErrUsrPwdStrength(errUsrPwdNoNumber))
+	})
+
+	t.Run("should return true for a no special character error", func(t *testing.T) {
+		assert.True(IsErrUsrPwdStrength(errUsrPwdNoSpecialChar))
+	})
+
+	t.Run("should return false for any other error", func(t *testing.T) {
+		assert.False(IsErrUsrPwdStrength(errors.New("testing error")))
 	})
 }

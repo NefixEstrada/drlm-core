@@ -22,6 +22,10 @@ type User struct {
 // Add creates a new user in the DB
 func (u *User) Add() error {
 	if err := db.DB.Create(u).Error; err != nil {
+		if IsErrUsrPwdStrength(err) {
+			return err
+		}
+
 		return fmt.Errorf("error adding the user to the DB: %v", err)
 	}
 
@@ -31,7 +35,7 @@ func (u *User) Add() error {
 // BeforeSave is a GORM hook that gets executed before saving the user. It's used to encrypt the password
 func (u *User) BeforeSave() error {
 	if err := u.checkPwdStrength(); err != nil {
-		return fmt.Errorf("password too weak: %v", err)
+		return err
 	}
 
 	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), 14)
@@ -43,11 +47,28 @@ func (u *User) BeforeSave() error {
 	return nil
 }
 
+// errUsrPwdLength indicates that the password is too short
+var errUsrPwdLength = errors.New("the password requires, at least, a length of 8 characters")
+
+// errUsrPwdNoUpperChar indicates that the password hasn't the required uppercase character
+var errUsrPwdNoUpperChar = errors.New("the password requires, at least, an uppercase character")
+
+// errUsrPwdNoNumber indicates that the password hasn't the requied number
+var errUsrPwdNoNumber = errors.New("the password requires, at least, a number")
+
+// errUsrPwdNoSpecialChar indicates that the password hasn't the required special character
+var errUsrPwdNoSpecialChar = errors.New("the password requires, at least, an special character")
+
+// IsErrUsrPwdStrength checks if an error is a password strength error
+func IsErrUsrPwdStrength(err error) bool {
+	return err == errUsrPwdLength || err == errUsrPwdNoUpperChar || err == errUsrPwdNoNumber || err == errUsrPwdNoSpecialChar
+}
+
 // checkPwdStrength validates that the password is strong enough
 func (u *User) checkPwdStrength() error {
 	// Has, at least, 8 characters long
 	if len(u.Password) < 8 {
-		return errors.New("the password requires, at least, a length of 8 characters")
+		return errUsrPwdLength
 	}
 
 	hasCapitalLetter := false
@@ -68,13 +89,13 @@ func (u *User) checkPwdStrength() error {
 	}
 
 	if !hasCapitalLetter {
-		return errors.New("the password requires, at least, an uppercase character")
+		return errUsrPwdNoUpperChar
 	}
 	if !hasNumber {
-		return errors.New("the password requires, at least, a number")
+		return errUsrPwdNoNumber
 	}
 	if !hasSpecialCharacter {
-		return errors.New("the password requires, at least, an special character")
+		return errUsrPwdNoSpecialChar
 	}
 
 	return nil
