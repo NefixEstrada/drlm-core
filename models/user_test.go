@@ -16,6 +16,7 @@ func TestUserAdd(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("should add the user to the DB", func(t *testing.T) {
+		tests.GenerateCfg(t)
 		tests.GenerateDB(t)
 
 		mocket.Catcher.NewMock().WithQuery(`INSERT INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES(?,?,?,?,?,?)`).WithReply([]map[string]interface{}{}).OneTime()
@@ -30,6 +31,7 @@ func TestUserAdd(t *testing.T) {
 	})
 
 	t.Run("should return an error if there's an error adding the user to the DB", func(t *testing.T) {
+		tests.GenerateCfg(t)
 		tests.GenerateDB(t)
 
 		mocket.Catcher.NewMock().WithQuery(`INSERT  INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES (?,?,?,?,?,?)`).WithError(errors.New("testing error")).OneTime()
@@ -86,6 +88,8 @@ func TestUserBeforeSave(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("should encrypt the password correctly", func(t *testing.T) {
+		tests.GenerateCfg(t)
+
 		u := models.User{
 			Username: "nefix",
 			Password: "f0cKt3Rf$",
@@ -97,6 +101,8 @@ func TestUserBeforeSave(t *testing.T) {
 	})
 
 	t.Run("should return an error if the password is too weak", func(t *testing.T) {
+		tests.GenerateCfg(t)
+
 		u := models.User{
 			Username: "nefix",
 			Password: "",

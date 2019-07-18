@@ -8,6 +8,7 @@ import (
 
 	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/auth/types"
+	"github.com/brainupdaters/drlm-core/cfg"
 
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
@@ -45,7 +46,7 @@ func (u *User) BeforeSave() error {
 		return err
 	}
 
-	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), 14)
+	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), cfg.Config.Security.BcryptCost)
 	if err != nil {
 		return fmt.Errorf("error encrypting the user password: %v", err)
 	}
