@@ -14,13 +14,8 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-func unaryInterceptor(ctx context.Context, req interface{}, info *gRPC.UnaryServerInfo, handler gRPC.UnaryHandler) (interface{}, error) {
-	return handler(ctx, req)
-}
-
-func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.StreamServerInfo, handler gRPC.StreamHandler) error {
-	return handler(srv, stream)
-}
+// CoreServer is the implementation of the DRLM Core GRPC server
+type CoreServer struct{}
 
 // Serve starts the DRLM Core GRPC server
 func Serve(ctx context.Context) {
@@ -63,4 +58,12 @@ func Serve(ctx context.Context) {
 		grpcServer.GracefulStop()
 		ctx.Value("wg").(*sync.WaitGroup).Done()
 	}
+}
+
+func unaryInterceptor(ctx context.Context, req interface{}, info *gRPC.UnaryServerInfo, handler gRPC.UnaryHandler) (interface{}, error) {
+	return handler(ctx, req)
+}
+
+func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.StreamServerInfo, handler gRPC.StreamHandler) error {
+	return handler(srv, stream)
 }

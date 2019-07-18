@@ -15,6 +15,101 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestUserLogin(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should return the token correctly", func(t *testing.T) {
+		tests.GenerateCfg(t)
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "$2y$12$JGfbXRGMBgDxMVhR9tT6B.C3xmAFM1BxkHD6.F0eUS5ugGXcZ5mUq",
+			"auth_type": 0,
+		}}).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserLoginRequest{
+			Usr: "nefix",
+			Pwd: "f0cKt3Rf$",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserLogin(ctx, req)
+
+		assert.Nil(err)
+		assert.NotNil(rsp.Tkn)
+	})
+
+	t.Run("should return an error if the user is not found", func(t *testing.T) {
+		tests.GenerateCfg(t)
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply(nil).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserLoginRequest{
+			Usr: "nefix",
+			Pwd: "f0cKt3Rf$",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserLogin(ctx, req)
+
+		assert.Equal(status.Error(codes.NotFound, `error logging in: user "nefix" not found`), err)
+		assert.Equal(&drlm.UserLoginResponse{}, rsp)
+	})
+
+	t.Run("should return an error if the password isn't correct", func(t *testing.T) {
+		tests.GenerateCfg(t)
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "$2y$12$JGfbXRGMBgDxMVhR9tT6B.C3xmAFM1BxkHD6.F0eUS5ugGXcZ5mUq",
+			"auth_type": 0,
+		}}).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserLoginRequest{
+			Usr: "nefix",
+			Pwd: "f0CKt3Rf$",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserLogin(ctx, req)
+
+		assert.Equal(status.Error(codes.Unauthenticated, "error logging in: incorrect password"), err)
+		assert.Equal(&drlm.UserLoginResponse{}, rsp)
+	})
+
+	t.Run("should return an error if there's an error logging in", func(t *testing.T) {
+		tests.GenerateCfg(t)
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "f0cKt3Rf$",
+			"auth_type": 0,
+		}}).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserLoginRequest{
+			Usr: "nefix",
+			Pwd: "f0cKt3Rf$",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserLogin(ctx, req)
+
+		assert.Equal(status.Error(codes.Unknown, "error logging in: password error: crypto/bcrypt: hashedSecret too short to be a bcrypted password"), err)
+		assert.Equal(&drlm.UserLoginResponse{}, rsp)
+	})
+}
+
 func TestUserAdd(t *testing.T) {
 	assert := assert.New(t)
 

@@ -1,7 +1,7 @@
 module github.com/brainupdaters/drlm-core
 
 require (
-	github.com/brainupdaters/drlm-common v0.0.0-20190716093027-7214172cb8c8
+	github.com/brainupdaters/drlm-common v0.0.0-20190718094359-69e5b97932ec
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/jinzhu/gorm v1.9.10
 	github.com/mitchellh/go-homedir v1.1.0

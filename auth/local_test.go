@@ -10,6 +10,7 @@ import (
 	"github.com/jinzhu/gorm"
 	mocket "github.com/selvatico/go-mocket"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestLoginLocal(t *testing.T) {
@@ -81,7 +82,7 @@ func TestLoginLocal(t *testing.T) {
 		}}).OneTime()
 
 		tkn, err := auth.LoginLocal("nefix", "asdfzxcv")
-		assert.EqualError(err, "incorrect password")
+		assert.Equal(bcrypt.ErrMismatchedHashAndPassword, err)
 		assert.Equal("", tkn.String())
 	})
 

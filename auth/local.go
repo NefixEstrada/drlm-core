@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/brainupdaters/drlm-core/auth/types"
@@ -29,7 +28,7 @@ func LoginLocal(usr, pwd string) (Token, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(pwd))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return "", errors.New("incorrect password")
+			return "", err
 		}
 
 		return "", fmt.Errorf("password error: %v", err)
