@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/cfg"
 	"github.com/brainupdaters/drlm-core/cli"
 	"github.com/brainupdaters/drlm-core/db"
@@ -42,6 +43,7 @@ func initConfig() {
 	fs.Init()
 	cfg.Init(cfgFile)
 	logger.Init(cfg.Config.Log)
+	auth.Init()
 	db.Init()
 
 	// Migrations are done here to avoid import cycles
