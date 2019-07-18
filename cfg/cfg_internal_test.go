@@ -20,6 +20,10 @@ func TestSetDefaults(t *testing.T) {
 		assert.Equal("cert/server.crt", v.GetString("grpc.cert_path"))
 		assert.Equal("cert/server.key", v.GetString("grpc.key_path"))
 
+		assert.Equal(14, v.GetInt("security.bcrypt_cost"))
+		assert.Equal(5, v.GetInt("security.tokens_lifespan"))
+		assert.Equal("", v.GetString("security.tokens_secret"))
+
 		assert.Equal("mariadb", v.GetString("db.host"))
 		assert.Equal(3306, v.GetInt("db.port"))
 		assert.Equal("drlm3", v.GetString("db.username"))

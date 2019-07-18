@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/auth/types"
 
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
@@ -17,6 +18,7 @@ type User struct {
 	gorm.Model
 	Username string `gorm:"unique;not null"`
 	Password string `gorm:"not null"`
+	AuthType types.Type
 }
 
 // Add creates a new user in the DB
@@ -30,6 +32,11 @@ func (u *User) Add() error {
 	}
 
 	return nil
+}
+
+// Load loads the user from the DB using the username
+func (u *User) Load() error {
+	return db.DB.Where("username = ?", u.Username).First(u).Error
 }
 
 // BeforeSave is a GORM hook that gets executed before saving the user. It's used to encrypt the password

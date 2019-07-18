@@ -16,10 +16,11 @@ var Config *DRLMCoreConfig
 
 // DRLMCoreConfig is the configuration of the Core of DRLM
 type DRLMCoreConfig struct {
-	GRPC  DRLMCoreGRPCConfig  `mapstructure:"grpc"`
-	DB    DRLMCoreDBConfig    `mapstructure:"db"`
-	Minio DRLMCoreMinioConfig `mapstructure:"minio"`
-	Log   logger.Config       `mapstructure:"log"`
+	GRPC     DRLMCoreGRPCConfig     `mapstructure:"grpc"`
+	Security DRLMCoreSecurityConfig `mapstructure:"security"`
+	DB       DRLMCoreDBConfig       `mapstructure:"db"`
+	Minio    DRLMCoreMinioConfig    `mapstructure:"minio"`
+	Log      logger.Config          `mapstructure:"log"`
 }
 
 // DRLMCoreGRPCConfig is the configuration related with the GRPC of DRLM Core
@@ -28,6 +29,13 @@ type DRLMCoreGRPCConfig struct {
 	TLS      bool   `mapstructure:"tls"`
 	CertPath string `mapstructure:"cert_path"`
 	KeyPath  string `mapstructure:"key_path"`
+}
+
+// DRLMCoreSecurityConfig is the configuration related with the security of DLRM Core
+type DRLMCoreSecurityConfig struct {
+	BcryptCost     int    `mapstructure:"bcrypt_cost"`
+	TokensLifespan int    `mapstructure:"tokens_lifespan"`
+	TokensSecret   string `mapstructure:"tokens_secret"`
 }
 
 // DRLMCoreDBConfig is the configuration related wtih the DB of the DRLM Core
@@ -88,6 +96,10 @@ func SetDefaults() {
 		"tls":       true,
 		"cert_path": "cert/server.crt",
 		"key_path":  "cert/server.key",
+	})
+	v.SetDefault("security", map[string]interface{}{
+		"bcrypt_cost":     14,
+		"tokens_lifespan": 5,
 	})
 	v.SetDefault("db", map[string]interface{}{
 		"host":     "mariadb",

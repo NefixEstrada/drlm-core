@@ -17,7 +17,11 @@ func GenerateCfg(t *testing.T) {
 
 	err := afero.WriteFile(fs.FS, "/etc/drlm/core.toml", []byte(`[grpc]
 cert_path = "/tls/godev/godev.crt"
-key_path = "/tls/godev/godev.key"`), 0644)
+key_path = "/tls/godev/godev.key"
+
+[security]
+bcrypt_cost = 1
+tokens_secret = "Ⓐ"`), 0644)
 	assert.Nil(err)
 
 	cfg.Init("")

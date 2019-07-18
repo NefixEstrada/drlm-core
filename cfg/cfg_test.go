@@ -11,6 +11,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertCfg(t *testing.T) {
+	assert := assert.New(t)
+
+	assert.Equal(50051, cfg.Config.GRPC.Port)
+	assert.Equal(true, cfg.Config.GRPC.TLS)
+	assert.Equal("cert/server.crt", cfg.Config.GRPC.CertPath)
+	assert.Equal("cert/server.key", cfg.Config.GRPC.KeyPath)
+
+	assert.Equal(14, cfg.Config.Security.BcryptCost)
+	assert.Equal(5, cfg.Config.Security.TokensLifespan)
+	assert.Equal("", cfg.Config.Security.TokensSecret)
+
+	assert.Equal("mariadb", cfg.Config.DB.Host)
+	assert.Equal(3306, cfg.Config.DB.Port)
+	assert.Equal("drlm3", cfg.Config.DB.Usr)
+	assert.Equal("drlm3db", cfg.Config.DB.Pwd)
+	assert.Equal("drlm3", cfg.Config.DB.DB)
+
+	assert.Equal("minio", cfg.Config.Minio.Host)
+	assert.Equal(9000, cfg.Config.Minio.Port)
+	assert.Equal(true, cfg.Config.Minio.SSL)
+	assert.Equal("drlm3minio", cfg.Config.Minio.AccessKey)
+	assert.Equal("drlm3minio", cfg.Config.Minio.SecretKey)
+
+	assert.Equal("info", cfg.Config.Log.Level)
+	assert.Equal("/var/log/drlm/core.log", cfg.Config.Log.File)
+}
+
 func TestInit(t *testing.T) {
 	assert := assert.New(t)
 
@@ -22,25 +50,7 @@ func TestInit(t *testing.T) {
 
 		cfg.Init("")
 
-		assert.Equal(50051, cfg.Config.GRPC.Port)
-		assert.Equal(true, cfg.Config.GRPC.TLS)
-		assert.Equal("cert/server.crt", cfg.Config.GRPC.CertPath)
-		assert.Equal("cert/server.key", cfg.Config.GRPC.KeyPath)
-
-		assert.Equal("mariadb", cfg.Config.DB.Host)
-		assert.Equal(3306, cfg.Config.DB.Port)
-		assert.Equal("drlm3", cfg.Config.DB.Usr)
-		assert.Equal("drlm3db", cfg.Config.DB.Pwd)
-		assert.Equal("drlm3", cfg.Config.DB.DB)
-
-		assert.Equal("minio", cfg.Config.Minio.Host)
-		assert.Equal(9000, cfg.Config.Minio.Port)
-		assert.Equal(true, cfg.Config.Minio.SSL)
-		assert.Equal("drlm3minio", cfg.Config.Minio.AccessKey)
-		assert.Equal("drlm3minio", cfg.Config.Minio.SecretKey)
-
-		assert.Equal("info", cfg.Config.Log.Level)
-		assert.Equal("/var/log/drlm/core.log", cfg.Config.Log.File)
+		assertCfg(t)
 	})
 
 	t.Run("should work as expected with a specified configuration file", func(t *testing.T) {
@@ -51,25 +61,7 @@ func TestInit(t *testing.T) {
 
 		cfg.Init("/core.toml")
 
-		assert.Equal(50051, cfg.Config.GRPC.Port)
-		assert.Equal(true, cfg.Config.GRPC.TLS)
-		assert.Equal("cert/server.crt", cfg.Config.GRPC.CertPath)
-		assert.Equal("cert/server.key", cfg.Config.GRPC.KeyPath)
-
-		assert.Equal("mariadb", cfg.Config.DB.Host)
-		assert.Equal(3306, cfg.Config.DB.Port)
-		assert.Equal("drlm3", cfg.Config.DB.Usr)
-		assert.Equal("drlm3db", cfg.Config.DB.Pwd)
-		assert.Equal("drlm3", cfg.Config.DB.DB)
-
-		assert.Equal("minio", cfg.Config.Minio.Host)
-		assert.Equal(9000, cfg.Config.Minio.Port)
-		assert.Equal(true, cfg.Config.Minio.SSL)
-		assert.Equal("drlm3minio", cfg.Config.Minio.AccessKey)
-		assert.Equal("drlm3minio", cfg.Config.Minio.SecretKey)
-
-		assert.Equal("info", cfg.Config.Log.Level)
-		assert.Equal("/var/log/drlm/core.log", cfg.Config.Log.File)
+		assertCfg(t)
 	})
 
 	t.Run("should fail and exit if there's an error reading the configuration", func(t *testing.T) {

@@ -20,7 +20,7 @@ func TestUserAdd(t *testing.T) {
 
 	t.Run("should add the new user", func(t *testing.T) {
 		tests.GenerateDB(t)
-		mocket.Catcher.NewMock().WithQuery(`INSERT INTO "users" ("created_at","updated_at","deleted_at","username","password") VALUES(?,?,?,?,?)`).WithReply([]map[string]interface{}{})
+		mocket.Catcher.NewMock().WithQuery(`INSERT INTO "users" ("created_at","updated_at","deleted_at","username","password") VALUES(?,?,?,?,?)`).WithReply([]map[string]interface{}{}).OneTime()
 
 		ctx := context.Background()
 		req := &drlm.UserAddRequest{
@@ -51,7 +51,7 @@ func TestUserAdd(t *testing.T) {
 
 	t.Run("should return an error if there's an error adding the user to the DB", func(t *testing.T) {
 		tests.GenerateDB(t)
-		mocket.Catcher.NewMock().WithQuery(`INSERT  INTO "users" ("created_at","updated_at","deleted_at","username","password") VALUES (?,?,?,?,?)`).WithError(errors.New("testing error"))
+		mocket.Catcher.NewMock().WithQuery(`INSERT  INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES (?,?,?,?,?,?)`).WithError(errors.New("testing error")).OneTime()
 
 		ctx := context.Background()
 		req := &drlm.UserAddRequest{
@@ -62,7 +62,7 @@ func TestUserAdd(t *testing.T) {
 		c := grpc.CoreServer{}
 		rsp, err := c.UserAdd(ctx, req)
 
-		assert.Equal(err, status.Error(codes.Unknown, "error adding the user to the DB: testing error"))
+		assert.Equal(status.Error(codes.Unknown, "error adding the user to the DB: testing error"), err)
 		assert.Equal(&drlm.UserAddResponse{}, rsp)
 	})
 }
