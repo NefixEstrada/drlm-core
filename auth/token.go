@@ -22,20 +22,22 @@ type TokenClaims struct {
 }
 
 // NewToken issues a new token
-func NewToken(usr string) (Token, error) {
+func NewToken(usr string) (Token, time.Time, error) {
+	expiresAt := time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute))
+
 	claims := &TokenClaims{
 		Usr: usr,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute)).Unix(),
+			ExpiresAt: expiresAt.Unix(),
 		},
 	}
 	tkn := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 	signedTkn, err := tkn.SignedString([]byte(cfg.Config.Security.TokensSecret))
 	if err != nil {
-		return "", fmt.Errorf("error signing the token: %v", err)
+		return "", time.Time{}, fmt.Errorf("error signing the token: %v", err)
 	}
 
-	return Token(signedTkn), nil
+	return Token(signedTkn), expiresAt, nil
 }
 
 // Validate checks whether a token is valid or not
@@ -53,7 +55,7 @@ func (t *Token) Validate() bool {
 }
 
 // Renew renews the validity of the token
-func (t *Token) Renew() error {
+func (t *Token) Renew() (time.Time, error) {
 	claims := &TokenClaims{}
 
 	tkn, err := jwt.ParseWithClaims(t.String(), claims, func(token *jwt.Token) (interface{}, error) {
@@ -68,43 +70,44 @@ func (t *Token) Renew() error {
 				}
 
 				if err = u.Load(); err != nil {
-					return fmt.Errorf("error renewing the token: error loading the user from the DB: %v", err)
+					return time.Time{}, fmt.Errorf("error renewing the token: error loading the user from the DB: %v", err)
 				}
 
 				if u.UpdatedAt.Before(time.Unix(claims.IssuedAt, 0)) {
-					signedTkn, err := renew(claims)
+					signedTkn, expiresAt, err := renew(claims)
 					if err != nil {
-						return fmt.Errorf("error renewing the token: %v", err)
+						return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 					}
 
 					*t = Token(signedTkn)
-					return nil
+					return expiresAt, nil
 				}
 			}
 		}
 
-		return errors.New("error renewing the token: the token is invalid or can't be renewed")
+		return time.Time{}, errors.New("error renewing the token: the token is invalid or can't be renewed")
 	}
 
-	signedTkn, err := renew(claims)
+	signedTkn, expiresAt, err := renew(claims)
 	if err != nil {
-		return fmt.Errorf("error renewing the token: %v", err)
+		return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 	}
 
 	*t = Token(signedTkn)
-	return nil
+	return expiresAt, nil
 }
 
-func renew(claims *TokenClaims) (string, error) {
-	claims.ExpiresAt = time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute)).Unix()
+func renew(claims *TokenClaims) (string, time.Time, error) {
+	expiresAt := time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute))
+	claims.ExpiresAt = expiresAt.Unix()
 
 	tkn := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 	signedTkn, err := tkn.SignedString([]byte(cfg.Config.Security.TokensSecret))
 	if err != nil {
-		return "", fmt.Errorf("error singing the token: %v", err)
+		return "", time.Time{}, fmt.Errorf("error singing the token: %v", err)
 	}
 
-	return signedTkn, nil
+	return signedTkn, expiresAt, nil
 }
 
 // String returns the token as a string

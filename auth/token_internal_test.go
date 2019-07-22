@@ -36,19 +36,10 @@ func TestRenew(t *testing.T) {
 		assert.Nil(err)
 		assert.True(parsedTkn.Valid)
 
-		signedTkn, err = renew(claims)
+		signedTkn, expiresAt, err := renew(claims)
 		assert.Nil(err)
 
 		tkn = Token(signedTkn)
-
-		claims = &TokenClaims{}
-		parsedTkn, err = jwt.ParseWithClaims(tkn.String(), claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.Config.Security.TokensSecret), nil
-		})
-		assert.Nil(err)
-		assert.True(parsedTkn.Valid)
-
-		newExpirationTime := time.Unix(claims.ExpiresAt, 0)
-		assert.True(newExpirationTime.After(originalExpirationTime))
+		assert.True(expiresAt.After(originalExpirationTime))
 	})
 }

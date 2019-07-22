@@ -3,6 +3,7 @@ package auth_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/utils/tests"
@@ -27,9 +28,10 @@ func TestLoginLocal(t *testing.T) {
 			"auth_type": 0,
 		}}).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
+		tkn, expiresAt, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
 		assert.Nil(err)
 		assert.NotNil(tkn)
+		assert.True(expiresAt.After(time.Now()))
 	})
 
 	t.Run("should return an error if the user isn't found", func(t *testing.T) {
@@ -38,7 +40,7 @@ func TestLoginLocal(t *testing.T) {
 
 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply(nil).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
+		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
 		assert.Equal(gorm.ErrRecordNotFound, err)
 		assert.Equal("", tkn.String())
 	})
@@ -49,7 +51,7 @@ func TestLoginLocal(t *testing.T) {
 
 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithError(errors.New("testing error")).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
+		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
 		assert.EqualError(err, "error loading the user from the DB: testing error")
 		assert.Equal("", tkn.String())
 	})
@@ -65,7 +67,7 @@ func TestLoginLocal(t *testing.T) {
 			"auth_type": -1,
 		}}).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
+		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
 		assert.EqualError(err, "invalid authentication method: user authentication type is unknown")
 		assert.Equal("", tkn.String())
 	})
@@ -81,7 +83,7 @@ func TestLoginLocal(t *testing.T) {
 			"auth_type": 0,
 		}}).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "asdfzxcv")
+		tkn, _, err := auth.LoginLocal("nefix", "asdfzxcv")
 		assert.Equal(bcrypt.ErrMismatchedHashAndPassword, err)
 		assert.Equal("", tkn.String())
 	})
@@ -97,7 +99,7 @@ func TestLoginLocal(t *testing.T) {
 			"auth_type": 0,
 		}}).OneTime()
 
-		tkn, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
+		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
 		assert.EqualError(err, "password error: crypto/bcrypt: hashedSecret too short to be a bcrypted password")
 		assert.Equal("", tkn.String())
 	})

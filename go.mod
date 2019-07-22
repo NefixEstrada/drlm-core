@@ -1,8 +1,9 @@
 module github.com/brainupdaters/drlm-core
 
 require (
-	github.com/brainupdaters/drlm-common v0.0.0-20190718094359-69e5b97932ec
+	github.com/brainupdaters/drlm-common v0.0.0-20190722060400-b3f1ca49475a
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/golang/protobuf v1.3.1
 	github.com/jinzhu/gorm v1.9.10
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/selvatico/go-mocket v1.0.7

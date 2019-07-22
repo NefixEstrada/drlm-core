@@ -7,6 +7,7 @@ import (
 	"github.com/brainupdaters/drlm-core/models"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -15,7 +16,7 @@ import (
 
 // UserLogin mocks the UserLogin gRPC method
 func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) (*drlm.UserLoginResponse, error) {
-	tkn, err := auth.LoginLocal(req.Usr, req.Pwd)
+	tkn, expiresAt, err := auth.LoginLocal(req.Usr, req.Pwd)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return &drlm.UserLoginResponse{}, status.Errorf(codes.NotFound, `error logging in: user "%s" not found`, req.Usr)
@@ -30,7 +31,15 @@ func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) 
 
 	return &drlm.UserLoginResponse{
 		Tkn: tkn.String(),
+		TknExpiration: &timestamp.Timestamp{
+			Seconds: expiresAt.Unix(),
+		},
 	}, nil
+}
+
+// UserTokenRenew renews the token of the user
+func (c *CoreServer) UserTokenRenew(ctx context.Context, req *drlm.UserTokenRenewRequest) (*drlm.UserTokenRenewResponse, error) {
+	return &drlm.UserTokenRenewResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }
 
 // UserAdd mocks the UserAdd gRPC method

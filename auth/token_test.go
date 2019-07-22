@@ -20,9 +20,10 @@ func TestNewToken(t *testing.T) {
 	t.Run("should return a new token", func(t *testing.T) {
 		tests.GenerateCfg(t)
 
-		tkn, err := auth.NewToken("nefix")
+		tkn, expiresAt, err := auth.NewToken("nefix")
 		assert.Nil(err)
 		assert.NotNil(tkn)
+		assert.True(expiresAt.After(time.Now()))
 	})
 }
 
@@ -88,17 +89,10 @@ func TestRenew(t *testing.T) {
 		assert.Nil(err)
 
 		tkn := auth.Token(signedTkn)
-		assert.Nil(tkn.Renew())
+		expiresAt, err := tkn.Renew()
 
-		claims := &auth.TokenClaims{}
-		parsedTkn, err := jwt.ParseWithClaims(tkn.String(), claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.Config.Security.TokensSecret), nil
-		})
 		assert.Nil(err)
-		assert.True(parsedTkn.Valid)
-
-		newExpirationTime := time.Unix(claims.ExpiresAt, 0)
-		assert.True(newExpirationTime.After(originalExpirationTime))
+		assert.True(expiresAt.After(originalExpirationTime))
 	})
 
 	t.Run("should renew the token if it has expired but the user hasn't been modified since the moment when it was issued", func(t *testing.T) {
@@ -124,23 +118,16 @@ func TestRenew(t *testing.T) {
 		assert.Nil(err)
 
 		tkn := auth.Token(signedTkn)
-		assert.Nil(tkn.Renew())
+		expiresAt, err := tkn.Renew()
 
-		claims := &auth.TokenClaims{}
-		parsedTkn, err := jwt.ParseWithClaims(tkn.String(), claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(cfg.Config.Security.TokensSecret), nil
-		})
 		assert.Nil(err)
-		assert.True(parsedTkn.Valid)
-
-		newExpirationTime := time.Unix(claims.ExpiresAt, 0)
-		assert.True(newExpirationTime.After(originalExpirationTime))
+		assert.True(expiresAt.After(originalExpirationTime))
 	})
 
 	t.Run("should return an error if there's an error parsing the token", func(t *testing.T) {
 		tkn := auth.Token("invalid token!")
 
-		err := tkn.Renew()
+		_, err := tkn.Renew()
 		assert.EqualError(err, "error renewing the token: the token is invalid or can't be renewed")
 	})
 
@@ -162,8 +149,8 @@ func TestRenew(t *testing.T) {
 		assert.Nil(err)
 
 		tkn := auth.Token(signedTkn)
-		assert.EqualError(tkn.Renew(), "error renewing the token: error loading the user from the DB: testing error")
-
+		_, err = tkn.Renew()
+		assert.EqualError(err, "error renewing the token: error loading the user from the DB: testing error")
 	})
 }
 
