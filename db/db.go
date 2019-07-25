@@ -7,6 +7,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 	log "github.com/sirupsen/logrus"
+
 	// Use MYSQL as the Gorm dialect
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
@@ -29,6 +30,7 @@ func Init() {
 	if err != nil {
 		log.Fatalf("error connecting to the DB: %v", err)
 	}
+	DB.LogMode(false)
 
 	log.Info("successfully connected to the DB")
 }

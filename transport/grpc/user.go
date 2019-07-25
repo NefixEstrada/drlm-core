@@ -11,10 +11,11 @@ import (
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
-// UserLogin mocks the UserLogin gRPC method
+// UserLogin logs in users and returns tokens
 func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) (*drlm.UserLoginResponse, error) {
 	tkn, expiresAt, err := auth.LoginLocal(req.Usr, req.Pwd)
 	if err != nil {
@@ -39,10 +40,25 @@ func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) 
 
 // UserTokenRenew renews the token of the user
 func (c *CoreServer) UserTokenRenew(ctx context.Context, req *drlm.UserTokenRenewRequest) (*drlm.UserTokenRenewResponse, error) {
-	return &drlm.UserTokenRenewResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if len(md.Get("tkn")) > 0 {
+			tkn := auth.Token(md.Get("tkn")[0])
+			expiresAt, err := tkn.Renew()
+			if err != nil {
+				return &drlm.UserTokenRenewResponse{}, status.Error(codes.Unknown, err.Error())
+			}
+
+			return &drlm.UserTokenRenewResponse{
+				Tkn:           tkn.String(),
+				TknExpiration: &timestamp.Timestamp{Seconds: expiresAt.Unix()},
+			}, nil
+		}
+	}
+
+	return &drlm.UserTokenRenewResponse{}, status.Error(codes.Unauthenticated, "not authenticated")
 }
 
-// UserAdd mocks the UserAdd gRPC method
+// UserAdd creates new users in the DB
 func (c *CoreServer) UserAdd(ctx context.Context, req *drlm.UserAddRequest) (*drlm.UserAddResponse, error) {
 	u := models.User{
 		Username: req.Usr,
@@ -60,12 +76,12 @@ func (c *CoreServer) UserAdd(ctx context.Context, req *drlm.UserAddRequest) (*dr
 	return &drlm.UserAddResponse{}, nil
 }
 
-// UserDelete mocks the UserDelete gRPC method
+// UserDelete deletes an user from the DB
 func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest) (*drlm.UserDeleteResponse, error) {
 	return &drlm.UserDeleteResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }
 
-// UserList mocks the UserList gRPC method
+// UserList lists all the users from the DB
 func (c *CoreServer) UserList(ctx context.Context, req *drlm.UserListRequest) (*drlm.UserListResponse, error) {
 	return &drlm.UserListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }
