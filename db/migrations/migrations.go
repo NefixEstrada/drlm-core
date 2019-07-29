@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"syscall"
@@ -28,12 +29,23 @@ func Migrate() {
 
 		fmt.Print("Please, set the admin password: ")
 		bPwd, err := terminal.ReadPassword(int(syscall.Stdin))
+		fmt.Print("\n")
 		if err != nil {
 			log.Fatalf("error creating the admin user: error reading the password: %v", err)
 		}
-		pwd := strings.TrimSpace(string(bPwd))
 
+		fmt.Print("Please, repeat admin password: ")
+		bPwd2, err := terminal.ReadPassword(int(syscall.Stdin))
 		fmt.Print("\n")
+		if err != nil {
+			log.Fatalf("error creating the admin user: error reading the password: %v", err)
+		}
+
+		if !bytes.Equal(bPwd, bPwd2) {
+			log.Fatalf("error creating the admin user: passwords don't match")
+		}
+
+		pwd := strings.TrimSpace(string(bPwd))
 
 		u = models.User{
 			Username: "admin",
