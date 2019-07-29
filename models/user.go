@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/db"
 
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
@@ -64,12 +64,9 @@ var errUsrPwdNoUpperChar = errors.New("the password requires, at least, an upper
 // errUsrPwdNoNumber indicates that the password hasn't the requied number
 var errUsrPwdNoNumber = errors.New("the password requires, at least, a number")
 
-// errUsrPwdNoSpecialChar indicates that the password hasn't the required special character
-var errUsrPwdNoSpecialChar = errors.New("the password requires, at least, an special character")
-
 // IsErrUsrPwdStrength checks if an error is a password strength error
 func IsErrUsrPwdStrength(err error) bool {
-	return err == errUsrPwdLength || err == errUsrPwdNoUpperChar || err == errUsrPwdNoNumber || err == errUsrPwdNoSpecialChar
+	return err == errUsrPwdLength || err == errUsrPwdNoUpperChar || err == errUsrPwdNoNumber
 }
 
 // checkPwdStrength validates that the password is strong enough
@@ -81,7 +78,6 @@ func (u *User) checkPwdStrength() error {
 
 	hasCapitalLetter := false
 	hasNumber := false
-	hasSpecialCharacter := false
 	for _, l := range u.Password {
 		// Has, at least, one capital letter
 		if !hasCapitalLetter && unicode.IsUpper(l) {
@@ -90,9 +86,6 @@ func (u *User) checkPwdStrength() error {
 			// Has, at least, one number
 			hasNumber = true
 
-		} else if !hasSpecialCharacter && unicode.IsSymbol(l) {
-			// Has, at least one special character
-			hasSpecialCharacter = true
 		}
 	}
 
@@ -101,9 +94,6 @@ func (u *User) checkPwdStrength() error {
 	}
 	if !hasNumber {
 		return errUsrPwdNoNumber
-	}
-	if !hasSpecialCharacter {
-		return errUsrPwdNoSpecialChar
 	}
 
 	return nil

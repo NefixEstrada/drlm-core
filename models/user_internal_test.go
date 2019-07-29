@@ -29,11 +29,6 @@ func TestUserCheckPwdStrength(t *testing.T) {
 		u := User{Password: "asdfzxÇv"}
 		assert.EqualError(u.checkPwdStrength(), "the password requires, at least, a number")
 	})
-
-	t.Run("should return an error if the password hasn't a special character", func(t *testing.T) {
-		u := User{Password: "4sdfzxÇv"}
-		assert.EqualError(u.checkPwdStrength(), "the password requires, at least, an special character")
-	})
 }
 
 func TestIsErrUsrPwdStrength(t *testing.T) {
@@ -49,10 +44,6 @@ func TestIsErrUsrPwdStrength(t *testing.T) {
 
 	t.Run("should return true for a no number error", func(t *testing.T) {
 		assert.True(IsErrUsrPwdStrength(errUsrPwdNoNumber))
-	})
-
-	t.Run("should return true for a no special character error", func(t *testing.T) {
-		assert.True(IsErrUsrPwdStrength(errUsrPwdNoSpecialChar))
 	})
 
 	t.Run("should return false for any other error", func(t *testing.T) {
