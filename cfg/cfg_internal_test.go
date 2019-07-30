@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,9 @@ func TestSetDefaults(t *testing.T) {
 		assert.Equal("cert/server.key", v.GetString("grpc.key_path"))
 
 		assert.Equal(14, v.GetInt("security.bcrypt_cost"))
-		assert.Equal(5, v.GetInt("security.tokens_lifespan"))
 		assert.Equal("", v.GetString("security.tokens_secret"))
+		assert.Equal(5*time.Minute, v.GetDuration("security.tokens_lifespan"))
+		assert.Equal(240*time.Hour, v.GetDuration("security.login_lifespan"))
 
 		assert.Equal("mariadb", v.GetString("db.host"))
 		assert.Equal(3306, v.GetInt("db.port"))

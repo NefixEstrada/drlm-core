@@ -36,9 +36,7 @@ func TestValidate(t *testing.T) {
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",
 			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(
-					time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute,
-				).Unix(),
+				ExpiresAt: time.Now().Add(cfg.Config.Security.TokensLifespan).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
 		assert.Nil(err)
@@ -60,9 +58,7 @@ func TestValidate(t *testing.T) {
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",
 			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(
-					-time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute,
-				).Unix(),
+				ExpiresAt: time.Now().Add(-cfg.Config.Security.TokensLifespan).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
 		assert.Nil(err)
@@ -106,7 +102,7 @@ func TestRenew(t *testing.T) {
 			"created_at": time.Now().Add(-10 * time.Minute),
 		}}).OneTime()
 
-		originalExpirationTime := time.Now().Add(-time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute)
+		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",
@@ -137,7 +133,7 @@ func TestRenew(t *testing.T) {
 
 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithError(errors.New("testing error")).OneTime()
 
-		originalExpirationTime := time.Now().Add(-time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute)
+		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",

@@ -76,7 +76,7 @@ func TestCheckAuth(t *testing.T) {
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",
 			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute).Unix(),
+				ExpiresAt: time.Now().Add(cfg.Config.Security.TokensLifespan).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
 		assert.Nil(err)

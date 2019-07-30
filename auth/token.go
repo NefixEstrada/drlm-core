@@ -23,7 +23,7 @@ type TokenClaims struct {
 
 // NewToken issues a new token
 func NewToken(usr string) (Token, time.Time, error) {
-	expiresAt := time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute))
+	expiresAt := time.Now().Add(cfg.Config.Security.TokensLifespan)
 
 	claims := &TokenClaims{
 		Usr: usr,
@@ -98,7 +98,7 @@ func (t *Token) Renew() (time.Time, error) {
 }
 
 func renew(claims *TokenClaims) (string, time.Time, error) {
-	expiresAt := time.Now().Add(time.Duration(time.Duration(cfg.Config.Security.TokensLifespan) * time.Minute))
+	expiresAt := time.Now().Add(cfg.Config.Security.TokensLifespan)
 	claims.ExpiresAt = expiresAt.Unix()
 
 	tkn := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
