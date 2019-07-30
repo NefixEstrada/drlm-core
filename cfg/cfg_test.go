@@ -1,7 +1,9 @@
 package cfg_test
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/brainupdaters/drlm-core/cfg"
 
@@ -62,6 +64,32 @@ func TestInit(t *testing.T) {
 		cfg.Init("/core.toml")
 
 		assertCfg(t)
+	})
+
+	t.Run("should reload the configuration correctly", func(t *testing.T) {
+		fs.FS = afero.NewOsFs()
+
+		d, err := afero.TempDir(fs.FS, "", "drlm-core-cfg-reload")
+		assert.Nil(err)
+
+		defer fs.FS.RemoveAll(d)
+
+		cfgFile := filepath.Join(d, "core.toml")
+
+		err = afero.WriteFile(fs.FS, cfgFile, nil, 0644)
+		assert.Nil(err)
+
+		cfg.Init(cfgFile)
+
+		assertCfg(t)
+
+		err = afero.WriteFile(fs.FS, cfgFile, []byte(`[grpc]
+port = 1312`), 0644)
+		assert.Nil(err)
+
+		time.Sleep(1 * time.Second)
+
+		assert.Equal(1312, cfg.Config.GRPC.Port)
 	})
 
 	t.Run("should fail and exit if there's an error reading the configuration", func(t *testing.T) {

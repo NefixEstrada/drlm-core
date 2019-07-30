@@ -3,6 +3,7 @@ module github.com/brainupdaters/drlm-core
 require (
 	github.com/brainupdaters/drlm-common v0.0.0-20190722060400-b3f1ca49475a
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/golang/protobuf v1.3.1
 	github.com/jinzhu/gorm v1.9.10
 	github.com/mitchellh/go-homedir v1.1.0
