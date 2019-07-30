@@ -6,6 +6,7 @@ import (
 
 	"github.com/brainupdaters/drlm-common/pkg/fs"
 	logger "github.com/brainupdaters/drlm-common/pkg/log"
+	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -76,6 +77,14 @@ func Init(cfgFile string) {
 	if err := v.Unmarshal(&Config); err != nil {
 		log.Fatalf("error decoding the configuration: invalid configuration: %v", err)
 	}
+
+	v.WatchConfig()
+	v.OnConfigChange(func(e fsnotify.Event) {
+		log.Info("configuration reloaded successfully")
+		if err := v.Unmarshal(&Config); err != nil {
+			log.Fatalf("error decoding the configuration: invalid configuration: %v", err)
+		}
+	})
 }
 
 // SetDefaults sets the default configurations for Viper
