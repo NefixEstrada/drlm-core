@@ -34,7 +34,8 @@ func TestValidate(t *testing.T) {
 		tests.GenerateCfg(t)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: time.Now(),
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: time.Now().Add(cfg.Config.Security.TokensLifespan).Unix(),
 			},
@@ -56,7 +57,8 @@ func TestValidate(t *testing.T) {
 		tests.GenerateCfg(t)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: time.Now(),
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: time.Now().Add(-cfg.Config.Security.TokensLifespan).Unix(),
 			},
@@ -77,7 +79,8 @@ func TestRenew(t *testing.T) {
 		originalExpirationTime := time.Now().Add(1 * time.Minute)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: originalExpirationTime,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: originalExpirationTime.Unix(),
 			},
@@ -105,7 +108,8 @@ func TestRenew(t *testing.T) {
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: originalExpirationTime,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: originalExpirationTime.Unix(),
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
@@ -127,6 +131,26 @@ func TestRenew(t *testing.T) {
 		assert.EqualError(err, "error renewing the token: the token is invalid or can't be renewed")
 	})
 
+	t.Run("should return an error if the token has expired and the login lifespan has been reached", func(t *testing.T) {
+		tests.GenerateCfg(t)
+
+		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
+
+		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
+			Usr:         "nefix",
+			FirstIssued: originalExpirationTime.Add(-250 * time.Hour),
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: originalExpirationTime.Unix(),
+				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
+			},
+		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
+		assert.Nil(err)
+
+		tkn := auth.Token(signedTkn)
+		_, err = tkn.Renew()
+		assert.EqualError(err, "error renewing the token: login lifespan exceeded, login again")
+	})
+
 	t.Run("should return an error if the token has expired and there's an error loading the DB user", func(t *testing.T) {
 		tests.GenerateCfg(t)
 		tests.GenerateDB(t)
@@ -136,7 +160,8 @@ func TestRenew(t *testing.T) {
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: originalExpirationTime,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: originalExpirationTime.Unix(),
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),

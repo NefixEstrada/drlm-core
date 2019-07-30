@@ -17,7 +17,8 @@ type Token string
 
 // TokenClaims are going to be embedded inside the JWT Token
 type TokenClaims struct {
-	Usr string
+	Usr         string
+	FirstIssued time.Time
 	jwt.StandardClaims
 }
 
@@ -26,7 +27,8 @@ func NewToken(usr string) (Token, time.Time, error) {
 	expiresAt := time.Now().Add(cfg.Config.Security.TokensLifespan)
 
 	claims := &TokenClaims{
-		Usr: usr,
+		Usr:         usr,
+		FirstIssued: time.Now(),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expiresAt.Unix(),
 		},
@@ -65,6 +67,10 @@ func (t *Token) Renew() (time.Time, error) {
 		if err != nil {
 			// If the token has expired, but the user hasn't been modified since before the token was issued (the password hasn't changed), the token can be renewed
 			if strings.HasPrefix(err.Error(), "token is expired by ") {
+				if time.Since(claims.FirstIssued) > cfg.Config.Security.LoginLifespan {
+					return time.Time{}, fmt.Errorf("error renewing the token: login lifespan exceeded, login again")
+				}
+
 				u := models.User{
 					Username: claims.Usr,
 				}

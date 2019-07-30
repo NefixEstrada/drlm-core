@@ -132,7 +132,8 @@ func TestUserTokenRenew(t *testing.T) {
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
-			Usr: "nefix",
+			Usr:         "nefix",
+			FirstIssued: originalExpirationTime,
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: originalExpirationTime.Unix(),
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
