@@ -1,0 +1,9 @@
+[grpc]
+cert_path = "/tls/godev/godev.crt"
+key_path = "/tls/godev/godev.key"
+
+[security]
+tokens_secret = "Q$dz$3N~%~RZ&fx!;fwTe[>=Q.YKq*^Ja5,Mp8zKjXzGElmGOH6SxyEr>3NWN(o}"
+
+[log]
+file = "drlm-core.log"
