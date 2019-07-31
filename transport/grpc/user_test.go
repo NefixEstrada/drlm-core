@@ -225,3 +225,70 @@ func TestUserAdd(t *testing.T) {
 		assert.Equal(&drlm.UserAddResponse{}, rsp)
 	})
 }
+
+func TestUserDelete(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should delete the user from the DB correctly", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "f0cKt3Rf$",
+			"auth_type": 0,
+		}}).OneTime()
+		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserDelete(ctx, req)
+
+		assert.Nil(err)
+		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
+	})
+
+	t.Run("should return a not found error if the user isn't in the DB", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply(nil).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserDelete(ctx, req)
+
+		assert.Equal(status.Error(codes.NotFound, `error deleting the user "nefix": not found`), err)
+		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
+	})
+
+	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "f0cKt3Rf$",
+			"auth_type": 0,
+		}}).OneTime()
+		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserDelete(ctx, req)
+
+		assert.Equal(status.Error(codes.Unknown, `error deleting the user "nefix": testing error`), err)
+		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
+	})
+}
