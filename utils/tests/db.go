@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	dB "github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/db"
 
 	"github.com/jinzhu/gorm"
 	mocket "github.com/selvatico/go-mocket"
@@ -18,6 +18,6 @@ func GenerateDB(t *testing.T) {
 	mocket.Catcher.Logging = true
 
 	var err error
-	dB.DB, err = gorm.Open(mocket.DriverName, "")
+	db.DB, err = gorm.Open(mocket.DriverName, "")
 	assert.Nil(err)
 }
