@@ -3,6 +3,7 @@ package cfg
 import (
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/brainupdaters/drlm-common/pkg/fs"
 	logger "github.com/brainupdaters/drlm-common/pkg/log"
@@ -34,9 +35,10 @@ type DRLMCoreGRPCConfig struct {
 
 // DRLMCoreSecurityConfig is the configuration related with the security of DLRM Core
 type DRLMCoreSecurityConfig struct {
-	BcryptCost     int    `mapstructure:"bcrypt_cost"`
-	TokensLifespan int    `mapstructure:"tokens_lifespan"`
-	TokensSecret   string `mapstructure:"tokens_secret"`
+	BcryptCost     int           `mapstructure:"bcrypt_cost"`
+	TokensSecret   string        `mapstructure:"tokens_secret"`
+	TokensLifespan time.Duration `mapstructure:"tokens_lifespan"`
+	LoginLifespan  time.Duration `mapstructure:"login_lifespan"`
 }
 
 // DRLMCoreDBConfig is the configuration related wtih the DB of the DRLM Core
@@ -108,7 +110,8 @@ func SetDefaults() {
 	})
 	v.SetDefault("security", map[string]interface{}{
 		"bcrypt_cost":     14,
-		"tokens_lifespan": 5,
+		"tokens_lifespan": 5 * time.Minute,
+		"login_lifespan":  240 * time.Hour,
 	})
 	v.SetDefault("db", map[string]interface{}{
 		"host":     "mariadb",

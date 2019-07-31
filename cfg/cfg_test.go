@@ -22,8 +22,9 @@ func assertCfg(t *testing.T) {
 	assert.Equal("cert/server.key", cfg.Config.GRPC.KeyPath)
 
 	assert.Equal(14, cfg.Config.Security.BcryptCost)
-	assert.Equal(5, cfg.Config.Security.TokensLifespan)
 	assert.Equal("", cfg.Config.Security.TokensSecret)
+	assert.Equal(5*time.Minute, cfg.Config.Security.TokensLifespan)
+	assert.Equal(240*time.Hour, cfg.Config.Security.LoginLifespan)
 
 	assert.Equal("mariadb", cfg.Config.DB.Host)
 	assert.Equal(3306, cfg.Config.DB.Port)
