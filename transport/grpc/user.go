@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/brainupdaters/drlm-core/auth"
+	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/models"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
@@ -63,6 +64,7 @@ func (c *CoreServer) UserAdd(ctx context.Context, req *drlm.UserAddRequest) (*dr
 	u := models.User{
 		Username: req.Usr,
 		Password: req.Pwd,
+		AuthType: types.Local,
 	}
 
 	if err := u.Add(); err != nil {
