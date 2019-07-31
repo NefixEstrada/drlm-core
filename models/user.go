@@ -22,6 +22,17 @@ type User struct {
 	AuthType types.Type
 }
 
+// UserList returns a list with all the users
+func UserList() ([]*User, error) {
+	users := []*User{}
+
+	if err := db.DB.Select("created_at, updated_at, username, auth_type").Find(&users).Error; err != nil {
+		return []*User{}, fmt.Errorf("error getting the list of users: %v", err)
+	}
+
+	return users, nil
+}
+
 // Add creates a new user in the DB
 func (u *User) Add() error {
 	if err := db.DB.Create(u).Error; err != nil {

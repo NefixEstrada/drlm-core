@@ -7,10 +7,74 @@ import (
 	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
+	"github.com/jinzhu/gorm"
 
 	mocket "github.com/selvatico/go-mocket"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestUserList(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should return a list of the users in the DB", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithReply([]map[string]interface{}{
+			map[string]interface{}{
+				"id":        1,
+				"username":  "nefix",
+				"auth_type": 0,
+			},
+			map[string]interface{}{
+				"id":        2,
+				"username":  "admin",
+				"auth_type": 0,
+			},
+			map[string]interface{}{
+				"id":        3,
+				"username":  "notnefix",
+				"auth_type": 0,
+			},
+		}).OneTime()
+
+		users, err := models.UserList()
+		assert.Nil(err)
+		assert.Equal([]*models.User{
+			&models.User{
+				Model: gorm.Model{
+					ID: 1,
+				},
+				Username: "nefix",
+				AuthType: types.Local,
+			},
+			&models.User{
+				Model: gorm.Model{
+					ID: 2,
+				},
+				Username: "admin",
+				AuthType: types.Local,
+			},
+			&models.User{
+				Model: gorm.Model{
+					ID: 3,
+				},
+				Username: "notnefix",
+				AuthType: types.Local,
+			},
+		}, users)
+	})
+
+	t.Run("should return an error if there's an error listing the users in the DB", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithError(errors.New("testing error")).OneTime()
+
+		users, err := models.UserList()
+		assert.EqualError(err, "error getting the list of users: testing error")
+		assert.Equal([]*models.User{}, users)
+
+	})
+}
 
 func TestUserAdd(t *testing.T) {
 	assert := assert.New(t)
