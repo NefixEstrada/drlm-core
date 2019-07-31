@@ -30,6 +30,18 @@ func TestUserAdd(t *testing.T) {
 		assert.Nil(u.Add())
 	})
 
+	t.Run("should return an error if the password is too weak", func(t *testing.T) {
+		tests.GenerateCfg(t)
+
+		u := models.User{
+			Username: "nefix",
+			Password: "",
+			AuthType: types.Local,
+		}
+
+		assert.EqualError(u.Add(), "the password requires, at least, a length of 8 characters")
+	})
+
 	t.Run("should return an error if there's an error adding the user to the DB", func(t *testing.T) {
 		tests.GenerateCfg(t)
 		tests.GenerateDB(t)
@@ -96,7 +108,7 @@ func TestUserBeforeSave(t *testing.T) {
 		}
 
 		assert.Nil(u.BeforeSave())
-		assert.NotEqual(u.Password, "f0cKt3Rf$")
+		assert.NotEqual("f0cKt3Rf$", u.Password)
 		assert.NotNil(u.Password)
 	})
 
