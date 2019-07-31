@@ -40,6 +40,15 @@ func (u *User) Load() error {
 	return db.DB.Where("username = ?", u.Username).First(u).Error
 }
 
+// Delete removes an user from the DB using the username
+func (u *User) Delete() error {
+	if err := u.Load(); err != nil {
+		return err
+	}
+
+	return db.DB.Delete(u).Error
+}
+
 // BeforeSave is a GORM hook that gets executed before saving the user. It's used to encrypt the password
 func (u *User) BeforeSave() error {
 	if err := u.checkPwdStrength(); err != nil {

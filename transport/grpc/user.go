@@ -80,7 +80,19 @@ func (c *CoreServer) UserAdd(ctx context.Context, req *drlm.UserAddRequest) (*dr
 
 // UserDelete deletes an user from the DB
 func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest) (*drlm.UserDeleteResponse, error) {
-	return &drlm.UserDeleteResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	u := models.User{
+		Username: req.Usr,
+	}
+
+	if err := u.Delete(); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &drlm.UserDeleteResponse{}, status.Errorf(codes.NotFound, `error deleting the user "%s": not found`, req.Usr)
+		}
+
+		return &drlm.UserDeleteResponse{}, status.Errorf(codes.Unknown, `error deleting the user "%s": %v`, req.Usr, err)
+	}
+
+	return &drlm.UserDeleteResponse{}, nil
 }
 
 // UserList lists all the users from the DB

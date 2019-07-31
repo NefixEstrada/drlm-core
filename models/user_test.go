@@ -96,6 +96,59 @@ func TestUserLoad(t *testing.T) {
 	})
 }
 
+func TestUserDelete(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should delete the user correctly", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "f0cKt3Rf$",
+			"auth_type": 0,
+		}}).OneTime()
+		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
+
+		u := models.User{
+			Username: "nefix",
+		}
+
+		assert.Nil(u.Delete())
+	})
+
+	t.Run("should return an error if there's an error loading the user", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithError(errors.New("testing error")).OneTime()
+
+		u := models.User{
+			Username: "nefix",
+		}
+
+		assert.EqualError(u.Delete(), "testing error")
+	})
+
+	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+			"id":        1,
+			"username":  "nefix",
+			"password":  "f0cKt3Rf$",
+			"auth_type": 0,
+		}}).OneTime()
+		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
+
+		u := models.User{
+			Username: "nefix",
+		}
+
+		assert.EqualError(u.Delete(), "testing error")
+	})
+
+}
+
 func TestUserBeforeSave(t *testing.T) {
 	assert := assert.New(t)
 
