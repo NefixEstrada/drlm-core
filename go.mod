@@ -1,7 +1,7 @@
 module github.com/brainupdaters/drlm-core
 
 require (
-	github.com/brainupdaters/drlm-common v0.0.0-20190722060400-b3f1ca49475a
+	github.com/brainupdaters/drlm-common v0.0.0-20190731104858-60eaa69d91ec
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/golang/protobuf v1.3.1

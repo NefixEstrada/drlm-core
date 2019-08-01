@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/brainupdaters/drlm-core/auth"
+	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/cfg"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
+	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/assert"
 	gRPC "google.golang.org/grpc"
@@ -101,4 +103,11 @@ func TestCheckAuth(t *testing.T) {
 
 		assert.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
 	})
+}
+
+func TestParseAuthType(t *testing.T) {
+	assert := assert.New(t)
+
+	assert.Equal(drlm.AuthType_UNKNOWN, parseAuthType(types.Unknown))
+	assert.Equal(drlm.AuthType_LOCAL, parseAuthType(types.Local))
 }

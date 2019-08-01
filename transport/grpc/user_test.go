@@ -13,6 +13,7 @@ import (
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	mocket "github.com/selvatico/go-mocket"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -31,7 +32,7 @@ func TestUserLogin(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "$2y$12$JGfbXRGMBgDxMVhR9tT6B.C3xmAFM1BxkHD6.F0eUS5ugGXcZ5mUq",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		ctx := context.Background()
@@ -74,7 +75,7 @@ func TestUserLogin(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "$2y$12$JGfbXRGMBgDxMVhR9tT6B.C3xmAFM1BxkHD6.F0eUS5ugGXcZ5mUq",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		ctx := context.Background()
@@ -98,7 +99,7 @@ func TestUserLogin(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		ctx := context.Background()
@@ -237,7 +238,7 @@ func TestUserDelete(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
 
@@ -277,7 +278,7 @@ func TestUserDelete(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
 
@@ -291,5 +292,82 @@ func TestUserDelete(t *testing.T) {
 
 		assert.Equal(status.Error(codes.Unknown, `error deleting the user "nefix": testing error`), err)
 		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
+	})
+}
+
+func TestUserList(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("should return the list of users correctly", func(t *testing.T) {
+		tests.GenerateDB(t)
+
+		now := time.Now()
+		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithReply([]map[string]interface{}{
+			map[string]interface{}{
+				"id":         1,
+				"username":   "nefix",
+				"auth_type":  1,
+				"created_at": now,
+				"updated_at": now,
+			},
+			map[string]interface{}{
+				"id":         2,
+				"username":   "admin",
+				"auth_type":  1,
+				"created_at": now,
+				"updated_at": now,
+			},
+			map[string]interface{}{
+				"id":         3,
+				"username":   "notnefix",
+				"auth_type":  1,
+				"created_at": now,
+				"updated_at": now,
+			},
+		}).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserListRequest{}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserList(ctx, req)
+
+		assert.Nil(err)
+		assert.Equal(&drlm.UserListResponse{
+			Users: []*drlm.UserListResponse_User{
+				&drlm.UserListResponse_User{
+					Usr:       "nefix",
+					AuthType:  drlm.AuthType_LOCAL,
+					CreatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+					UpdatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+				},
+				&drlm.UserListResponse_User{
+					Usr:       "admin",
+					AuthType:  drlm.AuthType_LOCAL,
+					CreatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+					UpdatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+				},
+				&drlm.UserListResponse_User{
+					Usr:       "notnefix",
+					AuthType:  drlm.AuthType_LOCAL,
+					CreatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+					UpdatedAt: &timestamp.Timestamp{Seconds: now.Unix()},
+				},
+			},
+		}, rsp)
+	})
+
+	t.Run("should return the list of users correctly", func(t *testing.T) {
+		tests.GenerateDB(t)
+		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithError(errors.New("testing error")).OneTime()
+
+		ctx := context.Background()
+		req := &drlm.UserListRequest{}
+
+		c := grpc.CoreServer{}
+		rsp, err := c.UserList(ctx, req)
+
+		assert.Equal(status.Error(codes.Unknown, "error getting the list of users: testing error"), err)
+		assert.Equal(&drlm.UserListResponse{}, rsp)
 	})
 }

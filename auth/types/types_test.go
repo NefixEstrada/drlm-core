@@ -12,5 +12,5 @@ func TestStirng(t *testing.T) {
 	assert := assert.New(t)
 
 	assert.Equal("local", types.Local.String())
-	assert.Equal("unknown", types.Type(-1).String())
+	assert.Equal("unknown", types.Unknown.String())
 }
