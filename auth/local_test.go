@@ -25,7 +25,7 @@ func TestLoginLocal(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		tkn, expiresAt, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
@@ -80,7 +80,7 @@ func TestLoginLocal(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		tkn, _, err := auth.LoginLocal("nefix", "asdfzxcv")
@@ -96,7 +96,7 @@ func TestLoginLocal(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")

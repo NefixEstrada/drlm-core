@@ -4,8 +4,10 @@ package types
 type Type int
 
 const (
+	// Unknown is an unknown authentication type
+	Unknown Type = iota
 	// Local is the local authentication type. It authenticates agains the local DB
-	Local Type = iota
+	Local
 )
 
 // String returns the authentication type in a string

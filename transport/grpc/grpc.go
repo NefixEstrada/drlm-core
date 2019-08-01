@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/brainupdaters/drlm-core/auth"
+	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/cfg"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
@@ -99,4 +100,14 @@ func checkAuth(ctx context.Context) error {
 	}
 
 	return status.Error(codes.Unauthenticated, "not authenticated")
+}
+
+func parseAuthType(t types.Type) drlm.AuthType {
+	switch t {
+	case types.Local:
+		return drlm.AuthType_LOCAL
+
+	default:
+		return drlm.AuthType_UNKNOWN
+	}
 }

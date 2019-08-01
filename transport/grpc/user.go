@@ -97,5 +97,22 @@ func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest
 
 // UserList lists all the users from the DB
 func (c *CoreServer) UserList(ctx context.Context, req *drlm.UserListRequest) (*drlm.UserListResponse, error) {
-	return &drlm.UserListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	users, err := models.UserList()
+	if err != nil {
+		return &drlm.UserListResponse{}, status.Error(codes.Unknown, err.Error())
+	}
+
+	rsp := &drlm.UserListResponse{}
+	for _, u := range users {
+		usr := &drlm.UserListResponse_User{
+			Usr:       u.Username,
+			AuthType:  parseAuthType(u.AuthType),
+			CreatedAt: &timestamp.Timestamp{Seconds: u.CreatedAt.Unix()},
+			UpdatedAt: &timestamp.Timestamp{Seconds: u.UpdatedAt.Unix()},
+		}
+
+		rsp.Users = append(rsp.Users, usr)
+	}
+
+	return rsp, nil
 }

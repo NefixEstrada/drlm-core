@@ -7,8 +7,8 @@ import (
 	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
-	"github.com/jinzhu/gorm"
 
+	"github.com/jinzhu/gorm"
 	mocket "github.com/selvatico/go-mocket"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,17 +23,17 @@ func TestUserList(t *testing.T) {
 			map[string]interface{}{
 				"id":        1,
 				"username":  "nefix",
-				"auth_type": 0,
+				"auth_type": 1,
 			},
 			map[string]interface{}{
 				"id":        2,
 				"username":  "admin",
-				"auth_type": 0,
+				"auth_type": 1,
 			},
 			map[string]interface{}{
 				"id":        3,
 				"username":  "notnefix",
-				"auth_type": 0,
+				"auth_type": 1,
 			},
 		}).OneTime()
 
@@ -132,7 +132,7 @@ func TestUserLoad(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 
 		u := models.User{
@@ -170,7 +170,7 @@ func TestUserDelete(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
 
@@ -200,7 +200,7 @@ func TestUserDelete(t *testing.T) {
 			"id":        1,
 			"username":  "nefix",
 			"password":  "f0cKt3Rf$",
-			"auth_type": 0,
+			"auth_type": 1,
 		}}).OneTime()
 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
 
