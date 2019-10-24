@@ -7,7 +7,6 @@ import (
 	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/models"
 
-	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -15,11 +14,7 @@ import (
 func LoginLocal(usr, pwd string) (Token, time.Time, error) {
 	u := models.User{Username: usr}
 	if err := u.Load(); err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return "", time.Time{}, err
-		}
-
-		return "", time.Time{}, fmt.Errorf("error loading the user from the DB: %v", err)
+		return "", time.Time{}, err
 	}
 
 	if u.AuthType != types.Local {

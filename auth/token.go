@@ -76,7 +76,7 @@ func (t *Token) Renew() (time.Time, error) {
 				}
 
 				if err = u.Load(); err != nil {
-					return time.Time{}, fmt.Errorf("error renewing the token: error loading the user from the DB: %v", err)
+					return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 				}
 
 				if u.UpdatedAt.Before(time.Unix(claims.IssuedAt, 0)) {

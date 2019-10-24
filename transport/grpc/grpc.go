@@ -105,9 +105,9 @@ func checkAuth(ctx context.Context) error {
 func parseAuthType(t types.Type) drlm.AuthType {
 	switch t {
 	case types.Local:
-		return drlm.AuthType_LOCAL
+		return drlm.AuthType_AUTH_LOCAL
 
 	default:
-		return drlm.AuthType_UNKNOWN
+		return drlm.AuthType_AUTH_UNKNOWN
 	}
 }

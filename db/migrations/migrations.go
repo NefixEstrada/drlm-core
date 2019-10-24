@@ -18,7 +18,17 @@ import (
 // Migrate runs all the DB migrations
 func Migrate() {
 	// 2019/07/16 10:02 - Add the User model
-	db.DB.AutoMigrate(&models.User{})
+	if err := db.DB.AutoMigrate(&models.User{}).Error; err != nil {
+		log.Fatalf("error migrating the User model: %v", err)
+	}
+	// 2019/10/16 11:52 - Add the Agent and Job models
+	if err := db.DB.AutoMigrate(&models.Agent{}).Error; err != nil {
+		log.Fatalf("error migrating the Agent model: %v", err)
+	}
+
+	if err := db.DB.AutoMigrate(&models.Job{}).Error; err != nil {
+		log.Fatalf("error migrating the Agent model: %v", err)
+	}
 
 	// Create the admin user if it doesn't exist
 	u := models.User{Username: "admin"}

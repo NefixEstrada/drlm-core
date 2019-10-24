@@ -7,15 +7,23 @@ import (
 	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
-	cmnTests "github.com/brainupdaters/drlm-common/pkg/tests"
+	"github.com/brainupdaters/drlm-common/pkg/test"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestInit(t *testing.T) {
-	t.Run("should exit if there's an error connecting to the DB", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		cfg.Config.DB.Host = "localhost"
-		cfg.Config.DB.Port = cmnTests.GetFreePort(t)
+type TestDBSuite struct {
+	test.Test
+}
 
-		cmnTests.AssertExits(t, db.Init)
-	})
+func TestDB(t *testing.T) {
+	suite.Run(t, new(TestDBSuite))
+}
+
+func (s *TestDBSuite) TestInit() {
+	tests.GenerateCfg(s.T())
+
+	cfg.Config.DB.Host = "localhost"
+	cfg.Config.DB.Port = s.FreePort()
+
+	s.Exits(db.Init)
 }

@@ -11,17 +11,23 @@ import (
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
-	cmnTests "github.com/brainupdaters/drlm-common/pkg/tests"
-	"github.com/stretchr/testify/assert"
+	"github.com/brainupdaters/drlm-common/pkg/test"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestServe(t *testing.T) {
-	assert := assert.New(t)
+type TestGRPCSuite struct {
+	test.Test
+}
 
-	t.Run("should start the GRPC server with TLS correctly", func(t *testing.T) {
-		tests.GenerateCfg(t)
+func TestGRPC(t *testing.T) {
+	suite.Run(t, new(TestGRPCSuite))
+}
 
-		port := cmnTests.GetFreePort(t)
+func (s *TestGRPCSuite) TestServe() {
+	s.Run("should start the GRPC server with TLS correctly", func() {
+		tests.GenerateCfg(s.T())
+
+		port := s.FreePort()
 		cfg.Config.GRPC.Port = port
 
 		var wg sync.WaitGroup
@@ -34,28 +40,28 @@ func TestServe(t *testing.T) {
 		cancel()
 	})
 
-	t.Run("should exit if there's an error listening to the port", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should exit if there's an error listening to the port", func() {
+		tests.GenerateCfg(s.T())
 
-		port := cmnTests.GetFreePort(t)
+		port := s.FreePort()
 		cfg.Config.GRPC.Port = port
 
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Config.GRPC.Port))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
-		cmnTests.AssertExits(t, func() { grpc.Serve(context.Background()) })
+		s.Exits(func() { grpc.Serve(context.Background()) })
 
-		assert.Nil(lis.Close())
+		s.Require().Nil(lis.Close())
 	})
 
-	t.Run("should exit if there's an error loading the TLS credentials", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should exit if there's an error loading the TLS credentials", func() {
+		tests.GenerateCfg(s.T())
 
-		port := cmnTests.GetFreePort(t)
+		port := s.FreePort()
 		cfg.Config.GRPC.Port = port
 
 		cfg.Config.GRPC.CertPath = "/notacert.go"
 
-		cmnTests.AssertExits(t, func() { grpc.Serve(context.Background()) })
+		s.Exits(func() { grpc.Serve(context.Background()) })
 	})
 }

@@ -2,44 +2,45 @@ package models_test
 
 import (
 	"errors"
+	"regexp"
 	"testing"
 
 	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jinzhu/gorm"
-	mocket "github.com/selvatico/go-mocket"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func TestUserList(t *testing.T) {
-	assert := assert.New(t)
+type TestUserSuite struct {
+	suite.Suite
+	mock sqlmock.Sqlmock
+}
 
-	t.Run("should return a list of the users in the DB", func(t *testing.T) {
-		tests.GenerateDB(t)
+func (s *TestUserSuite) SetupTest() {
+	s.mock = tests.GenerateDB(s.T())
+}
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithReply([]map[string]interface{}{
-			map[string]interface{}{
-				"id":        1,
-				"username":  "nefix",
-				"auth_type": 1,
-			},
-			map[string]interface{}{
-				"id":        2,
-				"username":  "admin",
-				"auth_type": 1,
-			},
-			map[string]interface{}{
-				"id":        3,
-				"username":  "notnefix",
-				"auth_type": 1,
-			},
-		}).OneTime()
+func (s *TestUserSuite) AfterTest() {
+	s.Nil(s.mock.ExpectationsWereMet())
+}
 
-		users, err := models.UserList()
-		assert.Nil(err)
-		assert.Equal([]*models.User{
+func TestUser(t *testing.T) {
+	suite.Run(t, new(TestUserSuite))
+}
+
+func (s *TestUserSuite) TestList() {
+	s.Run("should return a list of the users in the DB", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "auth_type"}).
+			AddRow(1, "nefix", types.Local).
+			AddRow(2, "admin", types.Local).
+			AddRow(3, "notnefix", types.Local),
+		)
+
+		expectedUsers := []*models.User{
 			&models.User{
 				Model: gorm.Model{
 					ID: 1,
@@ -61,29 +62,33 @@ func TestUserList(t *testing.T) {
 				Username: "notnefix",
 				AuthType: types.Local,
 			},
-		}, users)
-	})
-
-	t.Run("should return an error if there's an error listing the users in the DB", func(t *testing.T) {
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`).WithError(errors.New("testing error")).OneTime()
+		}
 
 		users, err := models.UserList()
-		assert.EqualError(err, "error getting the list of users: testing error")
-		assert.Equal([]*models.User{}, users)
 
+		s.Nil(err)
+		s.Equal(expectedUsers, users)
+	})
+
+	s.Run("should return an error if there's an error listing the users in the DB", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`)).WillReturnError(errors.New("testing error"))
+
+		users, err := models.UserList()
+
+		s.EqualError(err, "error getting the list of users: testing error")
+		s.Equal([]*models.User{}, users)
 	})
 }
 
-func TestUserAdd(t *testing.T) {
-	assert := assert.New(t)
+func (s *TestUserSuite) TestAdd() {
+	tests.GenerateCfg(s.T())
 
-	t.Run("should add the user to the DB", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`INSERT INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES(?,?,?,?,?,?)`).WithReply([]map[string]interface{}{}).OneTime()
+	s.Run("should add the user to the DB", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "users"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "nefix", tests.DBAnyEncryptedPassword{}, types.Local).WillReturnRows(sqlmock.NewRows([]string{"id"}).
+			AddRow(1),
+		)
+		s.mock.ExpectCommit()
 
 		u := models.User{
 			Username: "nefix",
@@ -91,11 +96,11 @@ func TestUserAdd(t *testing.T) {
 			AuthType: types.Local,
 		}
 
-		assert.Nil(u.Add())
+		s.Nil(u.Add())
 	})
 
-	t.Run("should return an error if the password is too weak", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should return an error if the password is too weak", func() {
+		s.mock.ExpectBegin()
 
 		u := models.User{
 			Username: "nefix",
@@ -103,14 +108,12 @@ func TestUserAdd(t *testing.T) {
 			AuthType: types.Local,
 		}
 
-		assert.EqualError(u.Add(), "the password requires, at least, a length of 8 characters")
+		s.EqualError(u.Add(), "the password requires, at least, a length of 8 characters")
 	})
 
-	t.Run("should return an error if there's an error adding the user to the DB", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`INSERT  INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES (?,?,?,?,?,?)`).WithError(errors.New("testing error")).OneTime()
+	s.Run("should return an error if there's an error adding the user to the DB", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "users" ("created_at","updated_at","deleted_at","username","password","auth_type") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "users"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "nefix", tests.DBAnyEncryptedPassword{}, types.Local).WillReturnError(errors.New("testing error"))
 
 		u := models.User{
 			Username: "nefix",
@@ -118,125 +121,132 @@ func TestUserAdd(t *testing.T) {
 			AuthType: types.Local,
 		}
 
-		assert.EqualError(u.Add(), "error adding the user to the DB: testing error")
+		s.EqualError(u.Add(), "error adding the user to the DB: testing error")
 	})
 }
 
-func TestUserLoad(t *testing.T) {
-	assert := assert.New(t)
+func (s *TestUserSuite) TestLoad() {
 
-	t.Run("should load the user from the DB correctly", func(t *testing.T) {
-		tests.GenerateDB(t)
+	s.Run("should load the user from the DB correctly", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
+		)
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "f0cKt3Rf$",
-			"auth_type": 1,
-		}}).OneTime()
+		expectedUser := models.User{
+			Model: gorm.Model{
+				ID: 1,
+			},
+			Username: "nefix",
+			Password: "f0cKt3Rf$",
+			AuthType: types.Local,
+		}
 
 		u := models.User{
 			Username: "nefix",
 		}
 
-		assert.Nil(u.Load())
-
-		assert.Equal(uint(1), u.ID)
-		assert.Equal("nefix", u.Username)
-		assert.Equal("f0cKt3Rf$", u.Password)
-		assert.Equal(types.Local, u.AuthType)
+		s.Nil(u.Load())
+		s.Equal(expectedUser, u)
 	})
 
-	t.Run("should return an error if there's an error loading the user from the DB", func(t *testing.T) {
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithError(errors.New("testing error")).OneTime()
+	s.Run("should return an error if there's an error loading the user from the DB", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(errors.New("testing error"))
 
 		u := models.User{
 			Username: "nefix",
 		}
 
-		assert.EqualError(u.Load(), "testing error")
+		s.EqualError(u.Load(), "error loading the user from the DB: testing error")
 	})
 }
 
-func TestUserDelete(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("should delete the user correctly", func(t *testing.T) {
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "f0cKt3Rf$",
-			"auth_type": 1,
-		}}).OneTime()
-		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
+func (s *TestUserSuite) TestDelete() {
+	s.Run("should delete the user correctly", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
+		)
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(&tests.DBAnyTime{}, 1)
 
 		u := models.User{
 			Username: "nefix",
 		}
 
-		assert.Nil(u.Delete())
+		s.Nil(u.Delete())
 	})
 
-	t.Run("should return an error if there's an error loading the user", func(t *testing.T) {
-		tests.GenerateDB(t)
+	// s.Run("should return an error if there's an error loading the user", func() {
+	// 	s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(errors.New("testing error"))
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithError(errors.New("testing error")).OneTime()
+	// 	u := models.User{
+	// 		Username: "nefix",
+	// 	}
 
-		u := models.User{
-			Username: "nefix",
-		}
-
-		assert.EqualError(u.Delete(), "testing error")
-	})
-
-	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "f0cKt3Rf$",
-			"auth_type": 1,
-		}}).OneTime()
-		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
-
-		u := models.User{
-			Username: "nefix",
-		}
-
-		assert.EqualError(u.Delete(), "testing error")
-	})
-
+	// 	s.EqualError(u.Delete(), "error deleting the user from the DB: error loading the user from the DB: testing error")
+	// })
 }
 
-func TestUserBeforeSave(t *testing.T) {
-	assert := assert.New(t)
+// func TestUserDelete(t *testing.T) {
+// 	assert := assert.New(t)
 
-	t.Run("should encrypt the password correctly", func(t *testing.T) {
-		tests.GenerateCfg(t)
+// 	t.Run("should delete the user correctly", func(t *testing.T) {
+// 		tests.GenerateDB(t)
 
+// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+// 			"id":        1,
+// 			"username":  "nefix",
+// 			"password":  "f0cKt3Rf$",
+// 			"auth_type": 1,
+// 		}}).OneTime()
+// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
+
+// 		u := models.User{
+// 			Username: "nefix",
+// 		}
+
+// 		assert.Nil(u.Delete())
+// 	})
+
+// 	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
+// 		tests.GenerateDB(t)
+
+// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
+// 			"id":        1,
+// 			"username":  "nefix",
+// 			"password":  "f0cKt3Rf$",
+// 			"auth_type": 1,
+// 		}}).OneTime()
+// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
+
+// 		u := models.User{
+// 			Username: "nefix",
+// 		}
+
+// 		assert.EqualError(u.Delete(), "testing error")
+// 	})
+
+// }
+
+func (s *TestUserSuite) TestBeforeSave() {
+	tests.GenerateCfg(s.T())
+
+	s.Run("should encrypt the password correctly", func() {
 		u := models.User{
 			Username: "nefix",
 			Password: "f0cKt3Rf$",
 		}
 
-		assert.Nil(u.BeforeSave())
-		assert.NotEqual("f0cKt3Rf$", u.Password)
-		assert.NotNil(u.Password)
+		s.Nil(u.BeforeSave())
+		_, err := bcrypt.Cost([]byte(u.Password))
+		s.Nil(err)
 	})
 
-	t.Run("should return an error if the password is too weak", func(t *testing.T) {
-		tests.GenerateCfg(t)
-
+	s.Run("should return an error if the password is too weak", func() {
 		u := models.User{
 			Username: "nefix",
 			Password: "",
 		}
 
-		assert.EqualError(u.BeforeSave(), "the password requires, at least, a length of 8 characters")
+		s.EqualError(u.BeforeSave(), "the password requires, at least, a length of 8 characters")
 	})
 }

@@ -8,9 +8,10 @@ import (
 	"github.com/brainupdaters/drlm-core/cfg"
 
 	"github.com/brainupdaters/drlm-common/pkg/fs"
-	"github.com/brainupdaters/drlm-common/pkg/tests"
+	"github.com/brainupdaters/drlm-common/pkg/test"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
 func assertCfg(t *testing.T) {
@@ -25,6 +26,7 @@ func assertCfg(t *testing.T) {
 	assert.Equal("", cfg.Config.Security.TokensSecret)
 	assert.Equal(5*time.Minute, cfg.Config.Security.TokensLifespan)
 	assert.Equal(240*time.Hour, cfg.Config.Security.LoginLifespan)
+	assert.Equal("./ssh", cfg.Config.Security.SSHKeysPath)
 
 	assert.Equal("mariadb", cfg.Config.DB.Host)
 	assert.Equal(3306, cfg.Config.DB.Port)
@@ -42,69 +44,69 @@ func assertCfg(t *testing.T) {
 	assert.Equal("/var/log/drlm/core.log", cfg.Config.Log.File)
 }
 
-func TestInit(t *testing.T) {
-	assert := assert.New(t)
+type TestCfgSuite struct {
+	test.Test
+}
 
-	t.Run("should work as expected", func(t *testing.T) {
+func TestCfg(t *testing.T) {
+	suite.Run(t, new(TestCfgSuite))
+}
+
+func (s *TestCfgSuite) TestInit() {
+	s.Run("should work as expected", func() {
 		fs.FS = afero.NewMemMapFs()
 
 		err := afero.WriteFile(fs.FS, "/etc/drlm/core.toml", nil, 0644)
-		assert.Nil(err)
+		s.Nil(err)
 
 		cfg.Init("")
 
-		assertCfg(t)
+		assertCfg(s.T())
 	})
 
-	t.Run("should work as expected with a specified configuration file", func(t *testing.T) {
+	s.Run("should work as expected with a specified configuration file", func() {
 		fs.FS = afero.NewMemMapFs()
 
 		err := afero.WriteFile(fs.FS, "/core.toml", nil, 0644)
-		assert.Nil(err)
+		s.Nil(err)
 
 		cfg.Init("/core.toml")
 
-		assertCfg(t)
+		assertCfg(s.T())
 	})
 
-	t.Run("should reload the configuration correctly", func(t *testing.T) {
+	s.Run("should reload the configuration correctly", func() {
 		fs.FS = afero.NewOsFs()
 
 		d, err := afero.TempDir(fs.FS, "", "drlm-core-cfg-reload")
-		assert.Nil(err)
+		s.Nil(err)
 
 		defer fs.FS.RemoveAll(d)
 
 		cfgFile := filepath.Join(d, "core.toml")
 
 		err = afero.WriteFile(fs.FS, cfgFile, nil, 0644)
-		assert.Nil(err)
+		s.Nil(err)
 
 		cfg.Init(cfgFile)
 
-		assertCfg(t)
+		assertCfg(s.T())
 
 		err = afero.WriteFile(fs.FS, cfgFile, []byte(`[grpc]
 port = 1312`), 0644)
-		assert.Nil(err)
+		s.Nil(err)
 
 		time.Sleep(1 * time.Second)
 
-		assert.Equal(1312, cfg.Config.GRPC.Port)
+		s.Equal(1312, cfg.Config.GRPC.Port)
 	})
 
-	t.Run("should fail and exit if there's an error reading the configuration", func(t *testing.T) {
-		fs.FS = afero.NewMemMapFs()
-
-		tests.AssertExits(t, func() { cfg.Init("") })
-	})
-
-	t.Run("should fail and exit if there's an error decoding the configuration", func(t *testing.T) {
+	s.Run("should exit if there's an error decoding the configuration", func() {
 		fs.FS = afero.NewMemMapFs()
 
 		err := afero.WriteFile(fs.FS, "/etc/drlm/core.json", []byte("invalid config"), 0644)
-		assert.Nil(err)
+		s.Nil(err)
 
-		tests.AssertExits(t, func() { cfg.Init("") })
+		s.Exits(func() { cfg.Init("") })
 	})
 }

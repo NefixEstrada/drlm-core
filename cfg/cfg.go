@@ -39,6 +39,7 @@ type DRLMCoreSecurityConfig struct {
 	TokensSecret   string        `mapstructure:"tokens_secret"`
 	TokensLifespan time.Duration `mapstructure:"tokens_lifespan"`
 	LoginLifespan  time.Duration `mapstructure:"login_lifespan"`
+	SSHKeysPath    string        `mapstructure:"ssh_keys_path"`
 }
 
 // DRLMCoreDBConfig is the configuration related wtih the DB of the DRLM Core
@@ -112,6 +113,7 @@ func SetDefaults() {
 		"bcrypt_cost":     14,
 		"tokens_lifespan": 5 * time.Minute,
 		"login_lifespan":  240 * time.Hour,
+		"ssh_keys_path":   "./ssh",
 	})
 	v.SetDefault("db", map[string]interface{}{
 		"host":     "mariadb",
