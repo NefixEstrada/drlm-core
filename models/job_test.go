@@ -108,12 +108,44 @@ func (s *TestJobSuite) TestList() {
 	})
 }
 
+func (s *TestJobSuite) TestAdd() {
+	s.Run("should add the job to the DB", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnRows(sqlmock.NewRows([]string{"id"}).
+			AddRow(1),
+		)
+		s.mock.ExpectCommit()
+
+		j := models.Job{
+			Name:      "sync",
+			AgentHost: "192.168.1.61",
+			Status:    models.JobStatusScheduled,
+		}
+
+		s.Nil(j.Add())
+	})
+
+	s.Run("should return an error if there's an error adding the job to the DB", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnError(errors.New("testing error"))
+		s.mock.ExpectCommit()
+
+		j := models.Job{
+			Name:      "sync",
+			AgentHost: "192.168.1.61",
+			Status:    models.JobStatusScheduled,
+		}
+
+		s.EqualError(j.Add(), "error adding the job to the DB: testing error")
+	})
+}
+
 func (s *TestJobSuite) TestLoad() {
 	s.Run("should load the job correctly", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "jobs"  WHERE "jobs"."deleted_at" IS NULL AND "jobs"."id" = $1 ORDER BY "jobs"."id" ASC LIMIT 1`)).WithArgs(1).WillReturnRows(sqlmock.NewRows([]string{"id", "name", "status", "agent_host"}).
 			AddRow(1, "sync", models.JobStatusRunning, "192.168.1.61"),
 		)
-		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WithArgs("192.168.1.61").WillReturnRows(sqlmock.NewRows([]string{"id", "host", "port", "os", "distro"}).
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND (("host" = $1)) ORDER BY "agents"."id" ASC`)).WithArgs("192.168.1.61").WillReturnRows(sqlmock.NewRows([]string{"id", "host", "port", "os", "distro"}).
 			AddRow(161, "192.168.1.61", 22, os.Linux, "nixos"),
 		)
 
@@ -128,7 +160,7 @@ func (s *TestJobSuite) TestLoad() {
 				Model: gorm.Model{
 					ID: 161,
 				},
-				Host:   "laptop",
+				Host:   "192.168.1.61",
 				Port:   22,
 				OS:     os.Linux,
 				Distro: "nixos",

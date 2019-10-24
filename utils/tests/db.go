@@ -33,7 +33,7 @@ func GenerateDB(t *testing.T) sqlmock.Sqlmock {
 type DBAnyTime struct{}
 
 // Match is the function responsible for returning whether the mock expression matches or not the expectations
-func (t *DBAnyTime) Match(v driver.Value) bool {
+func (a DBAnyTime) Match(v driver.Value) bool {
 	_, ok := v.(time.Time)
 	return ok
 }

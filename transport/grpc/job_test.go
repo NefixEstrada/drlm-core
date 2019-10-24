@@ -41,7 +41,7 @@ func TestJob(t *testing.T) {
 func (s *TestJobSuite) TestSchedule() {
 	s.Run("should schedule the jobs correctly", func() {
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_id","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", 1, models.JobStatusScheduled).WillReturnRows(sqlmock.NewRows([]string{"id"}).
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnRows(sqlmock.NewRows([]string{"id"}).
 			AddRow(161),
 		)
 		s.mock.ExpectCommit()
@@ -59,7 +59,7 @@ func (s *TestJobSuite) TestSchedule() {
 
 	s.Run("should return an error if there's an error scheduling the job", func() {
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_id","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", 1, models.JobStatusScheduled).WillReturnError(errors.New("testing error"))
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnError(errors.New("testing error"))
 
 		req := &drlm.JobScheduleRequest{
 			Name:      "sync",

@@ -149,6 +149,16 @@ func (s *TestUserSuite) TestLoad() {
 		s.Equal(expectedUser, u)
 	})
 
+	s.Run("should return an error if the user isn't found", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(gorm.ErrRecordNotFound)
+
+		u := models.User{
+			Username: "nefix",
+		}
+
+		s.True(gorm.IsRecordNotFoundError(u.Load()))
+	})
+
 	s.Run("should return an error if there's an error loading the user from the DB", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(errors.New("testing error"))
 
@@ -166,7 +176,8 @@ func (s *TestUserSuite) TestDelete() {
 			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
 		)
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(&tests.DBAnyTime{}, 1)
+		s.mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(&tests.DBAnyTime{}, 1).WillReturnResult(sqlmock.NewResult(1, 1))
+		s.mock.ExpectCommit()
 
 		u := models.User{
 			Username: "nefix",
@@ -175,57 +186,16 @@ func (s *TestUserSuite) TestDelete() {
 		s.Nil(u.Delete())
 	})
 
-	// s.Run("should return an error if there's an error loading the user", func() {
-	// 	s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(errors.New("testing error"))
+	s.Run("should return an error if there's an error loading the user", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(errors.New("testing error"))
 
-	// 	u := models.User{
-	// 		Username: "nefix",
-	// 	}
+		u := models.User{
+			Username: "nefix",
+		}
 
-	// 	s.EqualError(u.Delete(), "error deleting the user from the DB: error loading the user from the DB: testing error")
-	// })
+		s.EqualError(u.Delete(), "error deleting the user from the DB: error loading the user from the DB: testing error")
+	})
 }
-
-// func TestUserDelete(t *testing.T) {
-// 	assert := assert.New(t)
-
-// 	t.Run("should delete the user correctly", func(t *testing.T) {
-// 		tests.GenerateDB(t)
-
-// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-// 			"id":        1,
-// 			"username":  "nefix",
-// 			"password":  "f0cKt3Rf$",
-// 			"auth_type": 1,
-// 		}}).OneTime()
-// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
-
-// 		u := models.User{
-// 			Username: "nefix",
-// 		}
-
-// 		assert.Nil(u.Delete())
-// 	})
-
-// 	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
-// 		tests.GenerateDB(t)
-
-// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-// 			"id":        1,
-// 			"username":  "nefix",
-// 			"password":  "f0cKt3Rf$",
-// 			"auth_type": 1,
-// 		}}).OneTime()
-// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
-
-// 		u := models.User{
-// 			Username: "nefix",
-// 		}
-
-// 		assert.EqualError(u.Delete(), "testing error")
-// 	})
-
-// }
 
 func (s *TestUserSuite) TestBeforeSave() {
 	tests.GenerateCfg(s.T())

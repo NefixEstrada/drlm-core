@@ -12,7 +12,7 @@ import (
 type Job struct {
 	gorm.Model
 	Name      string    `gorm:"not null"`
-	Agent     *Agent    `gorm:"foreignkey:Host"`
+	Agent     *Agent    `gorm:"foreignkey:Host;association_foreignkey:AgentHost"`
 	AgentHost string    `gorm:"not null"`
 	Status    JobStatus `gorm:"not null"`
 }
@@ -70,7 +70,7 @@ func (j *Job) Load() error {
 	var a Agent
 	j.Agent = &a
 
-	if err := db.DB.First(j).Related(&a).Error; err != nil {
+	if err := db.DB.First(j).Related(&a, "Agent").Error; err != nil {
 		return fmt.Errorf("error loading the job from the DB: %v", err)
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/brainupdaters/drlm-core/cfg"
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 	"github.com/brainupdaters/drlm-core/utils/tests"
+	"github.com/jinzhu/gorm"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
@@ -62,19 +63,19 @@ func (s *TestUserSuite) TestLogin() {
 		s.NotNil(rsp.Tkn)
 	})
 
-	// s.Run("should return an error if the user is not found", func(t *testing.T) {
-	// 	s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnRows(sqlmock.NewRows([]string{}))
+	s.Run("should return an error if the user is not found", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnError(gorm.ErrRecordNotFound)
 
-	// 	req := &drlm.UserLoginRequest{
-	// 		Usr: "nefix",
-	// 		Pwd: "f0cKt3Rf$",
-	// 	}
+		req := &drlm.UserLoginRequest{
+			Usr: "nefix",
+			Pwd: "f0cKt3Rf$",
+		}
 
-	// 	rsp, err := s.c.UserLogin(s.ctx, req)
+		rsp, err := s.c.UserLogin(s.ctx, req)
 
-	// 	s.Equal(status.Error(codes.NotFound, `error logging in: error loading the user from the DB: user "nefix" not found`), err)
-	// 	s.Equal(&drlm.UserLoginResponse{}, rsp)
-	// })
+		s.Equal(status.Error(codes.NotFound, `error logging in: user "nefix" not found`), err)
+		s.Equal(&drlm.UserLoginResponse{}, rsp)
+	})
 
 	s.Run("should return an error if the password isn't correct", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
@@ -108,29 +109,6 @@ func (s *TestUserSuite) TestLogin() {
 		s.Equal(&drlm.UserLoginResponse{}, rsp)
 	})
 }
-
-// func TestUserLogin(t *testing.T) {
-// 	assert := assert.New(t)
-
-// 	t.Run("should return an error if the user is not found", func(t *testing.T) {
-// 		tests.GenerateCfg(t)
-// 		tests.GenerateDB(t)
-
-// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply(nil).OneTime()
-
-// 		ctx := context.Background()
-// 		req := &drlm.UserLoginRequest{
-// 			Usr: "nefix",
-// 			Pwd: "f0cKt3Rf$",
-// 		}
-
-// 		c := grpc.CoreServer{}
-// 		rsp, err := c.UserLogin(ctx, req)
-
-// 		assert.Equal(status.Error(codes.NotFound, `error logging in: user "nefix" not found`), err)
-// 		assert.Equal(&drlm.UserLoginResponse{}, rsp)
-// 	})
-// }
 
 func (s *TestUserSuite) TestTokenRenew() {
 	s.Run("should renew the token correctly", func() {
@@ -224,98 +202,42 @@ func (s *TestUserSuite) TestAdd() {
 }
 
 func (s *TestUserSuite) TestDelete() {
-	// s.Run("should delete the user from the DB correctly", func() {
-	// 	s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
-	// 		AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
-	// 	)
-	// 	s.mock.ExpectBegin()
-	// 	s.mock.ExpectQuery(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(tests.DBAnyTime{}, 1)
+	s.Run("should delete the user from the DB correctly", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
+		)
+		s.mock.ExpectBegin()
+		s.mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(tests.DBAnyTime{}, 1).WillReturnResult(sqlmock.NewResult(1, 1))
+		s.mock.ExpectCommit()
 
-	// 	req := &drlm.UserDeleteRequest{
-	// 		Usr: "nefix",
-	// 	}
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
 
-	// 	rsp, err := s.c.UserDelete(s.ctx, req)
+		rsp, err := s.c.UserDelete(s.ctx, req)
 
-	// 	s.Nil(err)
-	// 	s.Equal(&drlm.UserDeleteResponse{}, rsp)
-	// })
-
-	s.Run("should return a not found error if the user isn't found in the DB", func() {
-
+		s.Nil(err)
+		s.Equal(&drlm.UserDeleteResponse{}, rsp)
 	})
 
 	s.Run("should return an error if there's an error deleting the user", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
+		)
+		s.mock.ExpectBegin()
+		s.mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1  WHERE "users"."deleted_at" IS NULL AND "users"."id" = $2`)).WithArgs(tests.DBAnyTime{}, 1).WillReturnError(errors.New("testing error"))
+		s.mock.ExpectCommit()
 
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
+
+		rsp, err := s.c.UserDelete(s.ctx, req)
+
+		s.Equal(status.Error(codes.Unknown, `error deleting the user "nefix": testing error`), err)
+		s.Equal(&drlm.UserDeleteResponse{}, rsp)
 	})
 }
-
-// func TestUserDelete(t *testing.T) {
-// 	assert := assert.New(t)
-
-// 	t.Run("should delete the user from the DB correctly", func(t *testing.T) {
-// 		tests.GenerateDB(t)
-
-// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-// 			"id":        1,
-// 			"username":  "nefix",
-// 			"password":  "f0cKt3Rf$",
-// 			"auth_type": 1,
-// 		}}).OneTime()
-// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithReply([]map[string]interface{}{}).OneTime()
-
-// 		ctx := context.Background()
-// 		req := &drlm.UserDeleteRequest{
-// 			Usr: "nefix",
-// 		}
-
-// 		c := grpc.CoreServer{}
-// 		rsp, err := c.UserDelete(ctx, req)
-
-// 		assert.Nil(err)
-// 		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
-// 	})
-
-// t.Run("should return a not found error if the user isn't in the DB", func(t *testing.T) {
-// 	tests.GenerateDB(t)
-
-// 	mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply(nil).OneTime()
-
-// 	ctx := context.Background()
-// 	req := &drlm.UserDeleteRequest{
-// 		Usr: "nefix",
-// 	}
-
-// 	c := grpc.CoreServer{}
-// 	rsp, err := c.UserDelete(ctx, req)
-
-// 	assert.Equal(status.Error(codes.NotFound, `error deleting the user "nefix": not found`), err)
-// 	assert.Equal(&drlm.UserDeleteResponse{}, rsp)
-// })
-
-// 	t.Run("should return an error if there's an error deleting the user", func(t *testing.T) {
-// 		tests.GenerateDB(t)
-
-// 		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = nefix)) ORDER BY "users"."id" ASC LIMIT 1`).WithReply([]map[string]interface{}{{
-// 			"id":        1,
-// 			"username":  "nefix",
-// 			"password":  "f0cKt3Rf$",
-// 			"auth_type": 1,
-// 		}}).OneTime()
-// 		mocket.Catcher.NewMock().WithQuery(`UPDATE "users" SET "deleted_at"=?  WHERE "users"."deleted_at" IS NULL AND "users"."id" = ?`).WithError(errors.New("testing error")).OneTime()
-
-// 		ctx := context.Background()
-// 		req := &drlm.UserDeleteRequest{
-// 			Usr: "nefix",
-// 		}
-
-// 		c := grpc.CoreServer{}
-// 		rsp, err := c.UserDelete(ctx, req)
-
-// 		assert.Equal(status.Error(codes.Unknown, `error deleting the user "nefix": testing error`), err)
-// 		assert.Equal(&drlm.UserDeleteResponse{}, rsp)
-// 	})
-// }
 
 func (s *TestUserSuite) TestList() {
 	s.Run("should return the list of users correctly", func() {

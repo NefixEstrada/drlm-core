@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -86,6 +87,11 @@ func (s *TestAgentSuite) TestList() {
 	})
 
 	s.Run("should return an error if there's an error getting the list of agents", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, created_at, updated_at, host, port, user, public_key_path, private_key_path, version, arch, os, os_version, distro, distro_version FROM "agents" WHERE "agents"."deleted_at" IS NULL`)).WillReturnError(errors.New("testing error"))
 
+		agents, err := models.AgentList()
+
+		s.EqualError(err, "error getting the list of agents: testing error")
+		s.Equal([]*models.Agent{}, agents)
 	})
 }
