@@ -220,6 +220,19 @@ func (s *TestUserSuite) TestDelete() {
 		s.Equal(&drlm.UserDeleteResponse{}, rsp)
 	})
 
+	s.Run("should return an error if the user isn't found", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnError(gorm.ErrRecordNotFound)
+
+		req := &drlm.UserDeleteRequest{
+			Usr: "nefix",
+		}
+
+		rsp, err := s.c.UserDelete(s.ctx, req)
+
+		s.Equal(status.Error(codes.NotFound, `error deleting the user "nefix": not found`), err)
+		s.Equal(&drlm.UserDeleteResponse{}, rsp)
+	})
+
 	s.Run("should return an error if there's an error deleting the user", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
 			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),

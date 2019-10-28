@@ -7,6 +7,7 @@ import (
 	"github.com/brainupdaters/drlm-core/scheduler"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
+	"github.com/jinzhu/gorm"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -25,7 +26,7 @@ func (c *CoreServer) JobCancel(ctx context.Context, req *drlm.JobCancelRequest) 
 	return &drlm.JobCancelResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }
 
-// JobList returns a list with the the jobs of an agent. If the agent ID is 0, it will return all the jobs
+// JobList returns a list with the the jobs of an agent. If the agent Host is "", it will return all the jobs
 func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*drlm.JobListResponse, error) {
 	if req.AgentHost == "" {
 		jobs, err := models.JobList()
@@ -47,7 +48,27 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		return rsp, nil
 	}
 
-	return &drlm.JobListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	jobs, err := models.AgentJobList(req.AgentHost)
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return &drlm.JobListResponse{}, status.Error(codes.NotFound, "agent not found")
+		}
+
+		return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
+	}
+
+	rsp := &drlm.JobListResponse{}
+	for _, j := range jobs {
+		rsp.Jobs = append(rsp.Jobs, &drlm.JobListResponse_Job{
+			Id:        uint32(j.ID),
+			Name:      j.Name,
+			AgentHost: j.AgentHost,
+			Status:    drlm.JobStatus(j.Status),
+			// Info: ,
+		})
+	}
+
+	return rsp, nil
 }
 
 // JobNotify notifies a change in a job (this is called from the agent) (status change, stdout...)

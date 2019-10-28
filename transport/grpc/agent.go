@@ -18,14 +18,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func parseArch(a os.Arch) drlm.Arch {
-	return drlm.Arch(a)
-}
-
-func parseOS(o os.OS) drlm.OS {
-	return drlm.OS(o)
-}
-
 // AgentAdd adds a new Agent to the DB
 func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*drlm.AgentAddResponse, error) {
 	a := &models.Agent{}
@@ -120,8 +112,8 @@ func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) 
 			Port:          int32(a.Port),
 			User:          a.User,
 			Version:       a.Version,
-			Arch:          parseArch(a.Arch),
-			Os:            parseOS(a.OS),
+			Arch:          drlm.Arch(a.Arch),
+			Os:            drlm.OS(a.OS),
 			OsVersion:     a.OSVersion,
 			Distro:        a.Distro,
 			DistroVersion: a.DistroVersion,
@@ -150,8 +142,8 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 		Port:          int32(a.Port),
 		User:          a.User,
 		Version:       a.Version,
-		Arch:          parseArch(a.Arch),
-		Os:            parseOS(a.OS),
+		Arch:          drlm.Arch(a.Arch),
+		Os:            drlm.OS(a.OS),
 		OsVersion:     a.OSVersion,
 		Distro:        a.Distro,
 		DistroVersion: a.DistroVersion,

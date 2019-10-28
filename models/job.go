@@ -56,6 +56,28 @@ func JobList() ([]*Job, error) {
 	return jobs, nil
 }
 
+// AgentJobList returns a list with all the jobs of an specific agent
+func AgentJobList(agentHost string) ([]*Job, error) {
+	a := &Agent{
+		Host: agentHost,
+	}
+
+	if err := a.Load(); err != nil {
+		return []*Job{}, err
+	}
+
+	var jobs []*Job
+	if err := db.DB.Where("agent_host = ?", agentHost).Find(&jobs).Error; err != nil {
+		return []*Job{}, fmt.Errorf("error getting the jobs list: %v", err)
+	}
+
+	for _, j := range jobs {
+		j.Agent = a
+	}
+
+	return jobs, nil
+}
+
 // Add creates a new job in the DB
 func (j *Job) Add() error {
 	if err := db.DB.Create(j).Error; err != nil {
@@ -71,6 +93,10 @@ func (j *Job) Load() error {
 	j.Agent = &a
 
 	if err := db.DB.First(j).Related(&a, "Agent").Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return err
+		}
+
 		return fmt.Errorf("error loading the job from the DB: %v", err)
 	}
 

@@ -95,3 +95,100 @@ func (s *TestAgentSuite) TestList() {
 		s.Equal([]*models.Agent{}, agents)
 	})
 }
+
+func (s *TestAgentSuite) TestAdd() {
+	s.Run("should add the agent to the DB correctly", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "agents" ("created_at","updated_at","deleted_at","host","port","user","public_key_path","private_key_path","host_keys","version","arch","os","os_version","distro","distro_version") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING "agents"."id"`)).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+		s.mock.ExpectCommit()
+
+		a := &models.Agent{
+			Host: "192.168.1.61",
+			Port: 1312,
+			User: "drlm",
+		}
+
+		s.Nil(a.Add())
+	})
+
+	s.Run("should return an error if there's an error adding the agent to the DB", func() {
+		s.mock.ExpectBegin()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "agents" ("created_at","updated_at","deleted_at","host","port","user","public_key_path","private_key_path","host_keys","version","arch","os","os_version","distro","distro_version") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING "agents"."id"`)).WillReturnError(errors.New("testing error"))
+
+		a := &models.Agent{
+			Host: "192.168.1.61",
+			Port: 1312,
+			User: "drlm",
+		}
+
+		s.EqualError(a.Add(), "error adding the agent to the DB: testing error")
+	})
+}
+
+func (s *TestAgentSuite) TestLoad() {
+
+	s.Run("should load the agent correctly", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "host", "port", "user"}).
+			AddRow(161, "192.168.1.61", 1312, "drlm"),
+		)
+
+		a := &models.Agent{
+			Host: "192.168.1.61",
+		}
+
+		s.Nil(a.Load())
+		s.Equal(&models.Agent{
+			Model: gorm.Model{ID: 161},
+			Host:  "192.168.1.61",
+			Port:  1312,
+			User:  "drlm",
+		}, a)
+	})
+
+	s.Run("should return an error if the agent ins't found", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnError(gorm.ErrRecordNotFound)
+
+		a := &models.Agent{
+			Host: "192.168.1.61",
+		}
+
+		s.True(gorm.IsRecordNotFoundError(a.Load()))
+	})
+
+	s.Run("should return an error if there's an error loading the agent", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnError(errors.New("testing error"))
+
+		a := &models.Agent{
+			Host: "192.168.1.61",
+		}
+
+		s.EqualError(a.Load(), "error loading the agent from the DB: testing error")
+	})
+}
+
+func (s *TestAgentSuite) TestDelete() {
+	s.Run("should delete the agent correctly", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "host"}).
+			AddRow(1, "192.168.1.61"),
+		)
+		s.mock.ExpectBegin()
+		s.mock.ExpectExec(regexp.QuoteMeta(`UPDATE "agents" SET "deleted_at"=$1  WHERE "agents"."deleted_at" IS NULL AND "agents"."id" = $2`)).WithArgs(&tests.DBAnyTime{}, 1).WillReturnResult(sqlmock.NewResult(1, 1))
+		s.mock.ExpectCommit()
+
+		a := models.Agent{
+			Host: "192.168.1.61",
+		}
+
+		s.Nil(a.Delete())
+	})
+
+	s.Run("should return an error if there's an error deleting the agent", func() {
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnError(errors.New("testing error"))
+
+		a := models.Agent{
+			Host: "192.168.1.61",
+		}
+
+		s.EqualError(a.Delete(), "error loading the agent from the DB: testing error")
+	})
+}

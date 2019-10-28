@@ -49,7 +49,15 @@ func (a *Agent) Add() error {
 
 // Load loads the agent from the DB using the host
 func (a *Agent) Load() error {
-	return db.DB.Where("host = ?", a.Host).First(a).Error
+	if err := db.DB.Where("host = ?", a.Host).First(a).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return err
+		}
+
+		return fmt.Errorf("error loading the agent from the DB: %v", err)
+	}
+
+	return nil
 }
 
 // Delete removes an agent from the DB

@@ -193,7 +193,7 @@ func (s *TestUserSuite) TestDelete() {
 			Username: "nefix",
 		}
 
-		s.EqualError(u.Delete(), "error deleting the user from the DB: error loading the user from the DB: testing error")
+		s.EqualError(u.Delete(), "error loading the user from the DB: testing error")
 	})
 }
 

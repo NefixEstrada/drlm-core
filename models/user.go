@@ -62,7 +62,7 @@ func (u *User) Load() error {
 // Delete removes an user from the DB using the username
 func (u *User) Delete() error {
 	if err := u.Load(); err != nil {
-		return fmt.Errorf("error deleting the user from the DB: %v", err)
+		return err
 	}
 
 	return db.DB.Delete(u).Error
