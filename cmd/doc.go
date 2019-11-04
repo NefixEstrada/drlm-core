@@ -1,0 +1,3 @@
+// Package cmd is the responsible of parsing the commands flags
+// and initializing the conections with the DB, reading the config...
+package cmd
