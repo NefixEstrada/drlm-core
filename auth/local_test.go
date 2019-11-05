@@ -2,105 +2,102 @@ package auth_test
 
 import (
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/brainupdaters/drlm-core/auth"
+	"github.com/brainupdaters/drlm-core/auth/types"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
-	"github.com/jinzhu/gorm"
-	mocket "github.com/selvatico/go-mocket"
-	"github.com/stretchr/testify/assert"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestLoginLocal(t *testing.T) {
-	assert := assert.New(t)
+type TestLocalSuite struct {
+	suite.Suite
+	mock sqlmock.Sqlmock
+}
 
-	t.Run("should return a token if the authentication succeeds", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+func TestLocal(t *testing.T) {
+	suite.Run(t, new(TestLocalSuite))
+}
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW",
-			"auth_type": 1,
-		}}).OneTime()
+func (s *TestLocalSuite) SetupTest() {
+	s.mock = tests.GenerateDB(s.T())
+}
+
+func (s *TestLocalSuite) AfterTest() {
+	s.Nil(s.mock.ExpectationsWereMet())
+}
+
+func (s *TestLocalSuite) TestLogin() {
+	s.Run("should return a token if the authentication succeeds", func() {
+		tests.GenerateCfg(s.T())
+
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW", types.Local),
+		)
 
 		tkn, expiresAt, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
-		assert.Nil(err)
-		assert.NotNil(tkn)
-		assert.True(expiresAt.After(time.Now()))
+
+		s.Nil(err)
+		s.NotNil(tkn)
+		s.True(expiresAt.After(time.Now()))
 	})
 
-	t.Run("should return an error if the user isn't found", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should return an error if the user isn't found", func() {
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply(nil).OneTime()
+	})
+
+	s.Run("should return an error if there's an error loading the user", func() {
+		tests.GenerateCfg(s.T())
+
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnError(errors.New("testing error"))
 
 		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
-		assert.Equal(gorm.ErrRecordNotFound, err)
-		assert.Equal("", tkn.String())
+
+		s.EqualError(err, "error loading the user from the DB: testing error")
+		s.Equal("", tkn.String())
 	})
 
-	t.Run("should return an error if there's an error loading the user", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should return an error if the login type isn't local", func() {
+		tests.GenerateCfg(s.T())
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithError(errors.New("testing error")).OneTime()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW", types.Unknown),
+		)
 
 		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
-		assert.EqualError(err, "error loading the user from the DB: testing error")
-		assert.Equal("", tkn.String())
+
+		s.EqualError(err, "invalid authentication method: user authentication type is unknown")
+		s.Equal("", tkn.String())
 	})
 
-	t.Run("should return an error if the login type isn't local", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should return an error if the passwords don't match", func() {
+		tests.GenerateCfg(s.T())
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW",
-			"auth_type": -1,
-		}}).OneTime()
-
-		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
-		assert.EqualError(err, "invalid authentication method: user authentication type is unknown")
-		assert.Equal("", tkn.String())
-	})
-
-	t.Run("should return an error if the passwords don't match", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
-
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW",
-			"auth_type": 1,
-		}}).OneTime()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "$2y$12$U9o2EJDhZiwCkcP2sk3tSOHtEajHjcw0/izc8WfvqeX2M2YwQLhgW", types.Local),
+		)
 
 		tkn, _, err := auth.LoginLocal("nefix", "asdfzxcv")
-		assert.Equal(bcrypt.ErrMismatchedHashAndPassword, err)
-		assert.Equal("", tkn.String())
+
+		s.Equal(bcrypt.ErrMismatchedHashAndPassword, err)
+		s.Equal("", tkn.String())
 	})
 
-	t.Run("should return an error if there's an error comparing the passwords", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should return an error if there's an error comparing the passwords", func() {
+		tests.GenerateCfg(s.T())
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
-			"id":        1,
-			"username":  "nefix",
-			"password":  "f0cKt3Rf$",
-			"auth_type": 1,
-		}}).OneTime()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
+			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
+		)
 
-		tkn, _, err := auth.LoginLocal("nefix", "f0cKt3Rf$")
-		assert.EqualError(err, "password error: crypto/bcrypt: hashedSecret too short to be a bcrypted password")
-		assert.Equal("", tkn.String())
+		tkn, _, err := auth.LoginLocal("nefix", "asdfzxcv")
+
+		s.EqualError(err, "password error: crypto/bcrypt: hashedSecret too short to be a bcrypted password")
+		s.Equal("", tkn.String())
 	})
 }

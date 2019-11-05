@@ -20,7 +20,7 @@ import (
 func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) (*drlm.UserLoginResponse, error) {
 	tkn, expiresAt, err := auth.LoginLocal(req.Usr, req.Pwd)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.UserLoginResponse{}, status.Errorf(codes.NotFound, `error logging in: user "%s" not found`, req.Usr)
 		}
 
@@ -85,7 +85,7 @@ func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest
 	}
 
 	if err := u.Delete(); err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.UserDeleteResponse{}, status.Errorf(codes.NotFound, `error deleting the user "%s": not found`, req.Usr)
 		}
 

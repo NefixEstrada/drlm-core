@@ -108,6 +108,6 @@ func TestCheckAuth(t *testing.T) {
 func TestParseAuthType(t *testing.T) {
 	assert := assert.New(t)
 
-	assert.Equal(drlm.AuthType_UNKNOWN, parseAuthType(types.Unknown))
-	assert.Equal(drlm.AuthType_LOCAL, parseAuthType(types.Local))
+	assert.Equal(drlm.AuthType_AUTH_UNKNOWN, parseAuthType(types.Unknown))
+	assert.Equal(drlm.AuthType_AUTH_LOCAL, parseAuthType(types.Local))
 }

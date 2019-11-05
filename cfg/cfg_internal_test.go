@@ -25,6 +25,7 @@ func TestSetDefaults(t *testing.T) {
 		assert.Equal("", v.GetString("security.tokens_secret"))
 		assert.Equal(5*time.Minute, v.GetDuration("security.tokens_lifespan"))
 		assert.Equal(240*time.Hour, v.GetDuration("security.login_lifespan"))
+		assert.Equal("./ssh", v.GetString("security.ssh_keys_path"))
 
 		assert.Equal("mariadb", v.GetString("db.host"))
 		assert.Equal(3306, v.GetInt("db.port"))

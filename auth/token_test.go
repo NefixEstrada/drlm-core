@@ -2,36 +2,49 @@ package auth_test
 
 import (
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/cfg"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
+	"github.com/brainupdaters/drlm-common/pkg/test"
 	"github.com/dgrijalva/jwt-go"
-	mocket "github.com/selvatico/go-mocket"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestNewToken(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("should return a new token", func(t *testing.T) {
-		tests.GenerateCfg(t)
-
-		tkn, expiresAt, err := auth.NewToken("nefix")
-		assert.Nil(err)
-		assert.NotNil(tkn)
-		assert.True(expiresAt.After(time.Now()))
-	})
+type TestTokenSuite struct {
+	test.Test
+	mock sqlmock.Sqlmock
 }
 
-func TestValidate(t *testing.T) {
-	assert := assert.New(t)
+func TestToken(t *testing.T) {
+	suite.Run(t, new(TestTokenSuite))
+}
 
-	t.Run("should return true if the token is valid", func(t *testing.T) {
-		tests.GenerateCfg(t)
+func (s *TestTokenSuite) SetupTest() {
+	s.mock = tests.GenerateDB(s.T())
+}
+
+func (s *TestTokenSuite) AfterTest() {
+	s.Nil(s.mock.ExpectationsWereMet())
+}
+
+func (s *TestTokenSuite) TestNew() {
+	tests.GenerateCfg(s.T())
+
+	tkn, expiresAt, err := auth.NewToken("nefix")
+	s.Nil(err)
+	s.NotNil(tkn)
+	s.True(expiresAt.After(time.Now()))
+}
+
+func (s *TestTokenSuite) TestValidate() {
+	s.Run("should return true if the token is valid", func() {
+		tests.GenerateCfg(s.T())
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr:         "nefix",
@@ -40,21 +53,21 @@ func TestValidate(t *testing.T) {
 				ExpiresAt: time.Now().Add(cfg.Config.Security.TokensLifespan).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
 		tkn := auth.Token(signedTkn)
-		assert.True(tkn.Validate())
+		s.True(tkn.Validate())
 	})
 
-	t.Run("should return false if there's an error parsing the token", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should return false if there's an error parsing the token", func() {
+		tests.GenerateCfg(s.T())
 
 		tkn := auth.Token("invalid token!")
-		assert.False(tkn.Validate())
+		s.False(tkn.Validate())
 	})
 
-	t.Run("should return false if the token is invalid", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should return false if the token is invalid", func() {
+		tests.GenerateCfg(s.T())
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr:         "nefix",
@@ -63,18 +76,16 @@ func TestValidate(t *testing.T) {
 				ExpiresAt: time.Now().Add(-cfg.Config.Security.TokensLifespan).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
 		tkn := auth.Token(signedTkn)
-		assert.False(tkn.Validate())
+		s.False(tkn.Validate())
 	})
 }
 
-func TestRenew(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("should renew the token correctly", func(t *testing.T) {
-		tests.GenerateCfg(t)
+func (s *TestTokenSuite) TestRenew() {
+	s.Run("should renew the token correctly", func() {
+		tests.GenerateCfg(s.T())
 
 		originalExpirationTime := time.Now().Add(1 * time.Minute)
 
@@ -85,25 +96,21 @@ func TestRenew(t *testing.T) {
 				ExpiresAt: originalExpirationTime.Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
 		tkn := auth.Token(signedTkn)
 		expiresAt, err := tkn.Renew()
 
-		assert.Nil(err)
-		assert.True(expiresAt.After(originalExpirationTime))
+		s.Nil(err)
+		s.True(expiresAt.After(originalExpirationTime))
 	})
 
-	t.Run("should renew the token if it has expired but the user hasn't been modified since the moment when it was issued", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should renew the token if it has expired but the user hasn't been modified since the token was issued", func() {
+		tests.GenerateCfg(s.T())
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithReply([]map[string]interface{}{{
-			"id":         1,
-			"username":   "nefix",
-			"updated_at": time.Now().Add(-10 * time.Minute),
-			"created_at": time.Now().Add(-10 * time.Minute),
-		}}).OneTime()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "created_at", "updated_at"}).
+			AddRow(1, "nefix", time.Now().Add(-10*time.Minute), time.Now().Add(-10*time.Minute)),
+		)
 
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
@@ -115,24 +122,24 @@ func TestRenew(t *testing.T) {
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
 		tkn := auth.Token(signedTkn)
 		expiresAt, err := tkn.Renew()
 
-		assert.Nil(err)
-		assert.True(expiresAt.After(originalExpirationTime))
+		s.Nil(err)
+		s.True(expiresAt.After(originalExpirationTime))
 	})
 
-	t.Run("should return an error if there's an error parsing the token", func(t *testing.T) {
+	s.Run("should return an error if there's an error parsing the token", func() {
 		tkn := auth.Token("invalid token!")
 
 		_, err := tkn.Renew()
-		assert.EqualError(err, "error renewing the token: the token is invalid or can't be renewed")
+		s.EqualError(err, "error renewing the token: the token is invalid or can't be renewed")
 	})
 
-	t.Run("should return an error if the token has expired and the login lifespan has been reached", func(t *testing.T) {
-		tests.GenerateCfg(t)
+	s.Run("should return an error if the token has expired and the login lifespan has been reached", func() {
+		tests.GenerateCfg(s.T())
 
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
@@ -144,18 +151,17 @@ func TestRenew(t *testing.T) {
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Require().Nil(err)
 
 		tkn := auth.Token(signedTkn)
 		_, err = tkn.Renew()
-		assert.EqualError(err, "error renewing the token: login lifespan exceeded, login again")
+		s.EqualError(err, "error renewing the token: login lifespan exceeded, login again")
 	})
 
-	t.Run("should return an error if the token has expired and there's an error loading the DB user", func(t *testing.T) {
-		tests.GenerateCfg(t)
-		tests.GenerateDB(t)
+	s.Run("should return an error if the token has expired and there's an error loading the DB user", func() {
+		tests.GenerateCfg(s.T())
 
-		mocket.Catcher.NewMock().WithQuery(`SELECT * FROM "users"  WHERE`).WithError(errors.New("testing error")).OneTime()
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnError(errors.New("testing error"))
 
 		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
 
@@ -167,15 +173,14 @@ func TestRenew(t *testing.T) {
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
 			},
 		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		s.Nil(err)
 
 		tkn := auth.Token(signedTkn)
 		_, err = tkn.Renew()
-		assert.EqualError(err, "error renewing the token: error loading the user from the DB: testing error")
+		s.EqualError(err, "error renewing the token: error loading the user from the DB: testing error")
 	})
 }
 
-func TestString(t *testing.T) {
-	assert := assert.New(t)
-	assert.Equal("imaginethisisatoken", auth.Token("imaginethisisatoken").String())
+func (s *TestTokenSuite) TestString() {
+	s.Equal("imaginethisisatoken", auth.Token("imaginethisisatoken").String())
 }

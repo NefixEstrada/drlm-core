@@ -17,9 +17,9 @@ import (
 // User is an individual user of DRLM Core
 type User struct {
 	gorm.Model
-	Username string `gorm:"unique;not null"`
-	Password string `gorm:"not null"`
-	AuthType types.Type
+	Username string     `gorm:"unique;not null"`
+	Password string     `gorm:"not null"`
+	AuthType types.Type `gorm:"not null"`
 }
 
 // UserList returns a list with all the users
@@ -48,7 +48,15 @@ func (u *User) Add() error {
 
 // Load loads the user from the DB using the username
 func (u *User) Load() error {
-	return db.DB.Where("username = ?", u.Username).First(u).Error
+	if err := db.DB.Where("username = ?", u.Username).First(u).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return err
+		}
+
+		return fmt.Errorf("error loading the user from the DB: %v", err)
+	}
+
+	return nil
 }
 
 // Delete removes an user from the DB using the username

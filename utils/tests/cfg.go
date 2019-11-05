@@ -4,15 +4,15 @@ import (
 	"testing"
 
 	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/stretchr/testify/require"
 
 	"github.com/brainupdaters/drlm-common/pkg/fs"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
 )
 
 // GenerateCfg creates a configuration file with the default values
 func GenerateCfg(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 	fs.FS = afero.NewMemMapFs()
 
 	err := afero.WriteFile(fs.FS, "/etc/drlm/core.toml", []byte(`[grpc]
@@ -22,7 +22,7 @@ key_path = "/tls/godev/godev.key"
 [security]
 bcrypt_cost = 1
 tokens_secret = "Ⓐ"`), 0644)
-	assert.Nil(err)
+	require.Nil(err)
 
 	cfg.Init("")
 }
