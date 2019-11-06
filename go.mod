@@ -11,6 +11,7 @@ require (
 	github.com/jinzhu/gorm v1.9.10
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
+	github.com/minio/minio-go/v6 v6.0.40
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pelletier/go-toml v1.5.0 // indirect
 	github.com/robfig/cron v1.2.0

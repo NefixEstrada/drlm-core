@@ -36,6 +36,7 @@ func TestSetDefaults(t *testing.T) {
 		assert.Equal("minio", v.GetString("minio.host"))
 		assert.Equal(9000, v.GetInt("minio.port"))
 		assert.Equal(true, v.GetBool("minio.ssl"))
+		assert.Equal("cert/minio.crt", v.GetString("minio.cert_path"))
 		assert.Equal("drlm3minio", v.GetString("minio.access_key"))
 		assert.Equal("drlm3minio", v.GetString("minio.secret_key"))
 

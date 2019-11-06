@@ -5,5 +5,9 @@ key_path = "/tls/godev/godev.key"
 [security]
 tokens_secret = "Q$dz$3N~%~RZ&fx!;fwTe[>=Q.YKq*^Ja5,Mp8zKjXzGElmGOH6SxyEr>3NWN(o}"
 
+[minio]
+port = 9443
+cert_path = "/tls/minio/public.crt"
+
 [log]
 file = "drlm-core.log"

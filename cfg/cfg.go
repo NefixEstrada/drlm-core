@@ -56,6 +56,7 @@ type DRLMCoreMinioConfig struct {
 	Host      string `mapstructure:"host"`
 	Port      int    `mapstructure:"port"`
 	SSL       bool   `mapstructure:"ssl"`
+	CertPath  string `mapstructure:"cert_path"`
 	AccessKey string `mapstructure:"access_key"`
 	SecretKey string `mapstructure:"secret_key"`
 }
@@ -126,6 +127,7 @@ func SetDefaults() {
 		"host":       "minio",
 		"port":       9000,
 		"ssl":        true,
+		"cert_path":  "cert/minio.crt",
 		"access_key": "drlm3minio",
 		"secret_key": "drlm3minio",
 	})
