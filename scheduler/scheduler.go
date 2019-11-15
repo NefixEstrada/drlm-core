@@ -2,8 +2,10 @@ package scheduler
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 
+	"github.com/brainupdaters/drlm-core/minio"
 	"github.com/brainupdaters/drlm-core/models"
 
 	"github.com/robfig/cron"
@@ -38,10 +40,23 @@ func Init() {
 
 // AddJob adds a new job to the scheduler
 func AddJob(job string, host string) error {
+	a := &models.Agent{Host: host}
+	if err := a.Load(); err != nil {
+		return err
+	}
+
+	// TODO: Check Agent availability
+
+	bName, err := minio.MakeBucketForUser("drlm-agent-" + strconv.Itoa(int(a.ID)))
+	if err != nil {
+		return fmt.Errorf("error adding the job: %v", err)
+	}
+
 	j := &models.Job{
-		Name:      job,
-		Status:    models.JobStatusScheduled,
-		AgentHost: host,
+		Name:       job,
+		Status:     models.JobStatusScheduled,
+		AgentHost:  host,
+		BucketName: bName,
 	}
 
 	if err := j.Add(); err != nil {

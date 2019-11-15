@@ -24,8 +24,9 @@ func TestMinio(t *testing.T) {
 func (s *TestMinioSuite) TestInit() {
 	s.Run("should init correctly", func() {
 		tests.GenerateCfg(s.T())
-		fs.FS = afero.NewMemMapFs()
 		s.GenerateCert("minio", "cert")
+
+		cfg.Config.Minio.SSL = true
 
 		minio.Init()
 	})
@@ -39,14 +40,14 @@ func (s *TestMinioSuite) TestInit() {
 
 	s.Run("should exit if there's an error reading the certificate", func() {
 		tests.GenerateCfg(s.T())
-		fs.FS = afero.NewMemMapFs()
+		cfg.Config.Minio.SSL = true
 
 		s.Exits(minio.Init)
 	})
 
 	s.Run("should exit if there's an error parsing the certificate", func() {
 		tests.GenerateCfg(s.T())
-		fs.FS = afero.NewMemMapFs()
+		cfg.Config.Minio.SSL = true
 
 		s.Require().Nil(afero.WriteFile(fs.FS, "cert/minio.crt", []byte("invalid cert"), 0400))
 

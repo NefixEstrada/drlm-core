@@ -59,6 +59,7 @@ type DRLMCoreMinioConfig struct {
 	CertPath  string `mapstructure:"cert_path"`
 	AccessKey string `mapstructure:"access_key"`
 	SecretKey string `mapstructure:"secret_key"`
+	Location  string `mapstructure:"location"`
 }
 
 // v is the viper instance for the configuration
@@ -125,11 +126,12 @@ func SetDefaults() {
 	})
 	v.SetDefault("minio", map[string]interface{}{
 		"host":       "minio",
-		"port":       9000,
+		"port":       9443,
 		"ssl":        true,
 		"cert_path":  "cert/minio.crt",
 		"access_key": "drlm3minio",
 		"secret_key": "drlm3minio",
+		"location":   "eu-west-3",
 	})
 	v.SetDefault("log", map[string]interface{}{
 		"level": "info",

@@ -11,10 +11,11 @@ import (
 // Job is an individual job of the scheduler
 type Job struct {
 	gorm.Model
-	Name      string    `gorm:"not null"`
-	Agent     *Agent    `gorm:"foreignkey:Host;association_foreignkey:AgentHost"`
-	AgentHost string    `gorm:"not null"`
-	Status    JobStatus `gorm:"not null"`
+	Name       string    `gorm:"not null"`
+	Agent      *Agent    `gorm:"foreignkey:Host;association_foreignkey:AgentHost"`
+	AgentHost  string    `gorm:"not null"`
+	Status     JobStatus `gorm:"not null"`
+	BucketName string    `gorm:"not null;unique"`
 }
 
 // JobStatus is the status of a job
