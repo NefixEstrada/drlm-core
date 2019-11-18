@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package cli is like the "main" package. It's the responsible of
 // starting all the services, but it's not the responsible of initializing
 // things, such as DB connections, or reading the configuration. Everything

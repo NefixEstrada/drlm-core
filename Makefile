@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
 export GO111MODULE=on
 BINARY_NAME=drlm-core
 

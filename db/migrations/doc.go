@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 // Package migrations is the responsible of migrating
 // the DB correctly. Also, it creates the required items
 // if it's the first time the program gets executed
