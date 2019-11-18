@@ -211,15 +211,16 @@ func (s *TestJobSuite) TestAgentJobList() {
 func (s *TestJobSuite) TestAdd() {
 	s.Run("should add the job to the DB", func() {
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnRows(sqlmock.NewRows([]string{"id"}).
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status","bucket_name") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled, tests.DBAnyBucketName{}).WillReturnRows(sqlmock.NewRows([]string{"id"}).
 			AddRow(1),
 		)
 		s.mock.ExpectCommit()
 
 		j := models.Job{
-			Name:      "sync",
-			AgentHost: "192.168.1.61",
-			Status:    models.JobStatusScheduled,
+			Name:       "sync",
+			AgentHost:  "192.168.1.61",
+			Status:     models.JobStatusScheduled,
+			BucketName: "drlm-bn74rasu9jr587gc4fhg",
 		}
 
 		s.Nil(j.Add())
@@ -227,13 +228,14 @@ func (s *TestJobSuite) TestAdd() {
 
 	s.Run("should return an error if there's an error adding the job to the DB", func() {
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnError(errors.New("testing error"))
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status","bucket_name") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled, tests.DBAnyBucketName{}).WillReturnError(errors.New("testing error"))
 		s.mock.ExpectCommit()
 
 		j := models.Job{
-			Name:      "sync",
-			AgentHost: "192.168.1.61",
-			Status:    models.JobStatusScheduled,
+			Name:       "sync",
+			AgentHost:  "192.168.1.61",
+			Status:     models.JobStatusScheduled,
+			BucketName: "drlm-bn74rasu9jr587gc4fhg",
 		}
 
 		s.EqualError(j.Add(), "error adding the job to the DB: testing error")

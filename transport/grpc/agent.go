@@ -3,16 +3,11 @@ package grpc
 import (
 	"context"
 	"io"
-	"os/user"
-	"strings"
 
 	"github.com/brainupdaters/drlm-core/agent"
 	"github.com/brainupdaters/drlm-core/models"
 
-	"github.com/brainupdaters/drlm-common/pkg/os"
-	"github.com/brainupdaters/drlm-common/pkg/os/client"
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
-	"github.com/brainupdaters/drlm-common/pkg/ssh"
 	"github.com/jinzhu/gorm"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,10 +23,6 @@ func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*
 		return &drlm.AgentAddResponse{}, status.Errorf(codes.Unknown, "error adding the agent: %v", err)
 	}
 
-	if err := a.Add(); err != nil {
-		return &drlm.AgentAddResponse{}, status.Errorf(codes.Unknown, "error saving the agent to the DB: %v", err)
-	}
-
 	return &drlm.AgentAddResponse{}, nil
 }
 
@@ -44,40 +35,8 @@ func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 		req, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				a := &models.Agent{
-					Host: host,
-				}
-
-				if err := a.Load(); err != nil {
-					return status.Errorf(codes.Unknown, "error loading the agent from the DB: %v", err)
-				}
-
-				u, err := user.Current()
-				if err != nil {
-					return status.Errorf(codes.Unknown, "error getting the current user: %v", err)
-				}
-
-				coreCli := &client.Local{}
-				coreOS, err := os.DetectOS(coreCli)
-				if err != nil {
-					return err
-				}
-
-				keysPath, err := coreOS.CmdSSHGetKeysPath(coreCli, u.Username)
-				if err != nil {
-					return err
-				}
-
-				keys := strings.Split(a.HostKeys, "|||")
-				s, err := ssh.NewSessionWithKey(a.Host, a.Port, a.User, keysPath, keys)
-				if err != nil {
-					return status.Errorf(codes.Unknown, "error opening the ssh session with the agent: %v", err)
-				}
-				defer s.Close()
-				agentCli := &client.SSH{Session: s}
-
-				if err := a.OS.CmdPkgInstallBinary(agentCli, a.User, "drlm-agent", f); err != nil {
-					return status.Errorf(codes.Unknown, "error installing DRLM Agent: %v", err)
+				if err := agent.Install(host, f); err != nil {
+					return status.Error(codes.Unknown, err.Error())
 				}
 
 				return stream.SendAndClose(&drlm.AgentInstallResponse{

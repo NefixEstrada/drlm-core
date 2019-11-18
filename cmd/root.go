@@ -6,6 +6,7 @@ import (
 	"github.com/brainupdaters/drlm-core/cli"
 	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/db/migrations"
+	"github.com/brainupdaters/drlm-core/minio"
 
 	"github.com/brainupdaters/drlm-common/pkg/fs"
 	logger "github.com/brainupdaters/drlm-common/pkg/log"
@@ -45,7 +46,6 @@ func initConfig() {
 	logger.Init(cfg.Config.Log)
 	auth.Init()
 	db.Init()
-
-	// Migrations are done here to avoid import cycles
-	migrations.Migrate()
+	migrations.Migrate() // Migrations are done here to avoid import cycles
+	minio.Init()
 }

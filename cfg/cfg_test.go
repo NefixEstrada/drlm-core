@@ -35,10 +35,12 @@ func assertCfg(t *testing.T) {
 	assert.Equal("drlm3", cfg.Config.DB.DB)
 
 	assert.Equal("minio", cfg.Config.Minio.Host)
-	assert.Equal(9000, cfg.Config.Minio.Port)
+	assert.Equal(9443, cfg.Config.Minio.Port)
 	assert.Equal(true, cfg.Config.Minio.SSL)
+	assert.Equal("cert/minio.crt", cfg.Config.Minio.CertPath)
 	assert.Equal("drlm3minio", cfg.Config.Minio.AccessKey)
 	assert.Equal("drlm3minio", cfg.Config.Minio.SecretKey)
+	assert.Equal("eu-west-3", cfg.Config.Minio.Location)
 
 	assert.Equal("info", cfg.Config.Log.Level)
 	assert.Equal("/var/log/drlm/core.log", cfg.Config.Log.File)

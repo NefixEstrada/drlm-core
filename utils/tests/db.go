@@ -2,6 +2,7 @@ package tests
 
 import (
 	"database/sql/driver"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,4 +55,17 @@ func (p DBAnyEncryptedPassword) Match(v driver.Value) bool {
 	}
 
 	return true
+}
+
+// DBAnyBucketName is used to mock bucket names (since they have a UID part)
+type DBAnyBucketName struct{}
+
+// Match is the function responsible for returning whether the mock expression matches or not the expectations
+func (b DBAnyBucketName) Match(v driver.Value) bool {
+	bName, ok := v.(string)
+	if !ok {
+		return false
+	}
+
+	return strings.HasPrefix(bName, "drlm-")
 }

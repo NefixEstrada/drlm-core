@@ -34,10 +34,12 @@ func TestSetDefaults(t *testing.T) {
 		assert.Equal("drlm3", v.GetString("db.database"))
 
 		assert.Equal("minio", v.GetString("minio.host"))
-		assert.Equal(9000, v.GetInt("minio.port"))
+		assert.Equal(9443, v.GetInt("minio.port"))
 		assert.Equal(true, v.GetBool("minio.ssl"))
+		assert.Equal("cert/minio.crt", v.GetString("minio.cert_path"))
 		assert.Equal("drlm3minio", v.GetString("minio.access_key"))
 		assert.Equal("drlm3minio", v.GetString("minio.secret_key"))
+		assert.Equal("eu-west-3", v.GetString("minio.location"))
 
 		assert.Equal("info", v.GetString("log.level"))
 		assert.Equal("/var/log/drlm/core.log", v.GetString("log.file"))

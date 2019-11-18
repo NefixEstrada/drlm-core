@@ -3,9 +3,14 @@ package grpc_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/minio"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 	"github.com/brainupdaters/drlm-core/utils/tests"
@@ -41,8 +46,38 @@ func TestJob(t *testing.T) {
 
 func (s *TestJobSuite) TestSchedule() {
 	s.Run("should schedule the jobs correctly", func() {
+		tests.GenerateCfg(s.T())
+		minio.Init()
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/minio/admin/v1/add-canned-policy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		mux.HandleFunc("/minio/admin/v1/set-user-or-group-policy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.String(), "/drlm-") {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			s.Fail(r.URL.String())
+		})
+
+		srv := &http.Server{
+			Addr:    ":" + strconv.Itoa(cfg.Config.Minio.Port),
+			Handler: mux,
+		}
+
+		go srv.ListenAndServe()
+		defer srv.Close()
+
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "host", "port", "user"}).
+			AddRow(161, "192.168.1.61", 1312, "drlm"),
+		)
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnRows(sqlmock.NewRows([]string{"id"}).
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status","bucket_name") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled, tests.DBAnyBucketName{}).WillReturnRows(sqlmock.NewRows([]string{"id"}).
 			AddRow(161),
 		)
 		s.mock.ExpectCommit()
@@ -59,8 +94,38 @@ func (s *TestJobSuite) TestSchedule() {
 	})
 
 	s.Run("should return an error if there's an error scheduling the job", func() {
+		tests.GenerateCfg(s.T())
+		minio.Init()
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/minio/admin/v1/add-canned-policy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		mux.HandleFunc("/minio/admin/v1/set-user-or-group-policy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.String(), "/drlm-") {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			s.Fail(r.URL.String())
+		})
+
+		srv := &http.Server{
+			Addr:    ":" + strconv.Itoa(cfg.Config.Minio.Port),
+			Handler: mux,
+		}
+
+		go srv.ListenAndServe()
+		defer srv.Close()
+
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "agents" WHERE "agents"."deleted_at" IS NULL AND ((host = $1)) ORDER BY "agents"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "host", "port", "user"}).
+			AddRow(161, "192.168.1.61", 1312, "drlm"),
+		)
 		s.mock.ExpectBegin()
-		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT  INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled).WillReturnError(errors.New("testing error"))
+		s.mock.ExpectQuery(regexp.QuoteMeta(`INSERT INTO "jobs" ("created_at","updated_at","deleted_at","name","agent_host","status","bucket_name") VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING "jobs"."id"`)).WithArgs(tests.DBAnyTime{}, tests.DBAnyTime{}, nil, "sync", "192.168.1.61", models.JobStatusScheduled, tests.DBAnyBucketName{}).WillReturnError(errors.New("testing error"))
 
 		req := &drlm.JobScheduleRequest{
 			Name:      "sync",
