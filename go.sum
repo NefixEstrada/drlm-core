@@ -77,8 +77,8 @@ github.com/bitly/go-hostpool v0.0.0-20171023180738-a3a6125de932/go.mod h1:NOuUCS
 github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869/go.mod h1:Ekp36dRnpXw/yCqJaO+ZrUyxD+3VXMFFr56k5XYrpB4=
 github.com/boombuler/barcode v1.0.0/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
-github.com/brainupdaters/drlm-common v0.0.0-20191021095540-d111bf356835 h1:HcO8STvrPM9q3csYV3JHzF0BTZ6EPhbgrITI1o4U9HU=
-github.com/brainupdaters/drlm-common v0.0.0-20191021095540-d111bf356835/go.mod h1:ZmGBlwPnKLTIXj+v/OvqApcTefgJXdxRFIB9hSEI3n0=
+github.com/brainupdaters/drlm-common v0.0.0-20191121081309-ab3de695a362 h1:/dS0lfL4VWtu+w3sZ0QMpGN7xHHpdpbvrMDpfL/sGWs=
+github.com/brainupdaters/drlm-common v0.0.0-20191121081309-ab3de695a362/go.mod h1:ZmGBlwPnKLTIXj+v/OvqApcTefgJXdxRFIB9hSEI3n0=
 github.com/briankassouf/jose v0.9.1/go.mod h1:HQhVmdUf7dBNwIIdBTivnCDxcf6IZY3/zrb+uKSJz6Y=
 github.com/cenkalti/backoff v2.0.0+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cenkalti/backoff v2.1.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=

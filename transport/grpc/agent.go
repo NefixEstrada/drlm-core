@@ -110,3 +110,23 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 		DistroVersion: a.DistroVersion,
 	}, nil
 }
+
+// AgentPluginAdd adds a new plugin to the Agent
+func (c *CoreServer) AgentPluginAdd(ctx context.Context, req *drlm.AgentPluginAddRequest) (*drlm.AgentPluginAddResponse, error) {
+	return &drlm.AgentPluginAddResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentPluginRemove removes a plugin from the Agent
+func (c *CoreServer) AgentPluginRemove(ctx context.Context, req *drlm.AgentPluginRemoveRequest) (*drlm.AgentPluginRemoveResponse, error) {
+	return &drlm.AgentPluginRemoveResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentPluginUpdate updates a plugin of the Agent
+func (c *CoreServer) AgentPluginUpdate(ctx context.Context, req *drlm.AgentPluginUpdateRequest) (*drlm.AgentPluginUpdateResponse, error) {
+	return &drlm.AgentPluginUpdateResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentPluginList lists the plugins of the Agent
+func (c *CoreServer) AgentPluginList(ctx context.Context, req *drlm.AgentPluginListRequest) (*drlm.AgentPluginListResponse, error) {
+	return &drlm.AgentPluginListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}

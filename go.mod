@@ -3,7 +3,7 @@ module github.com/brainupdaters/drlm-core
 require (
 	cloud.google.com/go v0.47.0 // indirect
 	github.com/DATA-DOG/go-sqlmock v1.3.3
-	github.com/brainupdaters/drlm-common v0.0.0-20191021095540-d111bf356835
+	github.com/brainupdaters/drlm-common v0.0.0-20191121081309-ab3de695a362
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
