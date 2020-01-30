@@ -32,6 +32,11 @@ func Migrate() {
 		log.Fatalf("error migrating the Agent model: %v", err)
 	}
 
+	// 2020/01/27 12:26 - Add the plugin model
+	if err := db.DB.AutoMigrate(&models.Plugin{}).Error; err != nil {
+		log.Fatalf("error migrating the Plugin model: %v", err)
+	}
+
 	// Create the admin user if it doesn't exist
 	u := models.User{Username: "admin"}
 	if err := u.Load(); err != nil {

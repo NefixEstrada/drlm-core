@@ -22,7 +22,7 @@ import (
 )
 
 // API is the API version of the server
-var API = "v1.0.0"
+const API = "v1.0.0"
 
 // CoreServer is the implementation of the DRLM Core GRPC server
 type CoreServer struct{}
@@ -65,7 +65,7 @@ func Serve(ctx context.Context) {
 
 	select {
 	case <-ctx.Done():
-		grpcServer.GracefulStop()
+		grpcServer.Stop()
 		ctx.Value("wg").(*sync.WaitGroup).Done()
 	}
 }
@@ -82,8 +82,12 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *gRPC.UnaryServ
 }
 
 func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.StreamServerInfo, handler gRPC.StreamHandler) error {
-	if err := checkAuth(stream.Context()); err != nil {
-		return err
+	// DEV NOTE: The AgentConnection does the agent authentication check because there's no other way to send the host (that gets
+	// 			 returned from the auth check) to the AgentConnection function
+	if info.FullMethod != "/drlm.DRLM/AgentConnection" {
+		if err := checkAuth(stream.Context()); err != nil {
+			return err
+		}
 	}
 
 	return handler(srv, stream)

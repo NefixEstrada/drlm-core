@@ -4,6 +4,7 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/scheduler"
@@ -16,7 +17,14 @@ import (
 
 // JobSchedule schedules a new job
 func (c *CoreServer) JobSchedule(ctx context.Context, req *drlm.JobScheduleRequest) (*drlm.JobScheduleResponse, error) {
-	if err := scheduler.AddJob(req.Name, req.AgentHost); err != nil {
+	var t time.Time
+	if req.Time == nil {
+		t = time.Now()
+	} else {
+		t = time.Unix(req.Time.Seconds, int64(req.Time.Nanos))
+	}
+
+	if err := scheduler.AddJob(req.AgentHost, req.Name, req.Config, t); err != nil {
 		return &drlm.JobScheduleResponse{}, status.Error(codes.Unknown, err.Error())
 	}
 
@@ -40,7 +48,7 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		for _, j := range jobs {
 			rsp.Jobs = append(rsp.Jobs, &drlm.JobListResponse_Job{
 				Id:        uint32(j.ID),
-				Name:      j.Name,
+				Name:      j.Plugin.String(),
 				AgentHost: j.AgentHost,
 				Status:    drlm.JobStatus(j.Status),
 				// Info: ,
@@ -50,8 +58,9 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		return rsp, nil
 	}
 
-	jobs, err := models.AgentJobList(req.AgentHost)
-	if err != nil {
+	a := &models.Agent{Host: req.AgentHost}
+
+	if err := a.Load(); err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.JobListResponse{}, status.Error(codes.NotFound, "agent not found")
 		}
@@ -59,11 +68,16 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
 	}
 
+	if err := a.LoadJobs(); err != nil {
+		return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
+	}
+
 	rsp := &drlm.JobListResponse{}
-	for _, j := range jobs {
+	for _, j := range a.Jobs {
 		rsp.Jobs = append(rsp.Jobs, &drlm.JobListResponse_Job{
-			Id:        uint32(j.ID),
-			Name:      j.Name,
+			Id: uint32(j.ID),
+			// TODO: !!!!
+			// Name:      j.Name,
 			AgentHost: j.AgentHost,
 			Status:    drlm.JobStatus(j.Status),
 			// Info: ,
@@ -71,9 +85,4 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 	}
 
 	return rsp, nil
-}
-
-// JobNotify notifies a change in a job (this is called from the agent) (status change, stdout...)
-func (c *CoreServer) JobNotify(ctx context.Context, req *drlm.JobNotifyRequest) (*drlm.JobNotifyResponse, error) {
-	return &drlm.JobNotifyResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }

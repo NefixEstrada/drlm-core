@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/scheduler"
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 
 	log "github.com/sirupsen/logrus"
@@ -22,8 +23,9 @@ func Main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = context.WithValue(ctx, "wg", &wg)
 
+	scheduler.Init(ctx)
+	wg.Add(1)
 	go grpc.Serve(ctx)
-
 	wg.Add(1)
 
 	stop := make(chan os.Signal, 1)

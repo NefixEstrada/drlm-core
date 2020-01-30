@@ -4,6 +4,8 @@ package models
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/brainupdaters/drlm-core/db"
 
@@ -13,11 +15,18 @@ import (
 // Job is an individual job of the scheduler
 type Job struct {
 	gorm.Model
-	Name       string    `gorm:"not null"`
-	Agent      *Agent    `gorm:"foreignkey:Host;association_foreignkey:AgentHost"`
+
+	PluginID   uint      `gorm:"not null"`
+	Plugin     *Plugin   `gorm:"-"`
 	AgentHost  string    `gorm:"not null"`
 	Status     JobStatus `gorm:"not null"`
-	BucketName string    `gorm:"not null;unique"`
+	Time       time.Time
+	Config     string `gorm:"not null"`
+	BucketName string `gorm:"not null;unique"`
+	Info       string
+
+	Mu             sync.Mutex `gorm:"-"`
+	ReconnAttempts int
 }
 
 // JobStatus is the status of a job
@@ -46,38 +55,6 @@ func JobList() ([]*Job, error) {
 		return []*Job{}, fmt.Errorf("error getting the jobs list: %v", err)
 	}
 
-	for _, j := range jobs {
-		j.Agent = &Agent{
-			Host: j.AgentHost,
-		}
-
-		if err := j.Agent.Load(); err != nil {
-			return []*Job{}, fmt.Errorf("error getting the agent for the job #%d: %v", j.ID, err)
-		}
-	}
-
-	return jobs, nil
-}
-
-// AgentJobList returns a list with all the jobs of an specific agent
-func AgentJobList(agentHost string) ([]*Job, error) {
-	a := &Agent{
-		Host: agentHost,
-	}
-
-	if err := a.Load(); err != nil {
-		return []*Job{}, err
-	}
-
-	var jobs []*Job
-	if err := db.DB.Where("agent_host = ?", agentHost).Find(&jobs).Error; err != nil {
-		return []*Job{}, fmt.Errorf("error getting the jobs list: %v", err)
-	}
-
-	for _, j := range jobs {
-		j.Agent = a
-	}
-
 	return jobs, nil
 }
 
@@ -90,17 +67,26 @@ func (j *Job) Add() error {
 	return nil
 }
 
-// Load loads the job from teh DB
+// Load loads the job from the DB
 func (j *Job) Load() error {
-	var a Agent
-	j.Agent = &a
+	var p Plugin
+	j.Plugin = &p
 
-	if err := db.DB.First(j).Related(&a, "Agent").Error; err != nil {
+	if err := db.DB.First(j).Related(&p, "PluginID").Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return err
 		}
 
 		return fmt.Errorf("error loading the job from the DB: %v", err)
+	}
+
+	return nil
+}
+
+// Update updates the job in the DB
+func (j *Job) Update() error {
+	if err := db.DB.Save(j).Error; err != nil {
+		return fmt.Errorf("error updating the job: %v", err)
 	}
 
 	return nil

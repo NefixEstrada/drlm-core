@@ -7,19 +7,26 @@ import (
 	"io"
 
 	"github.com/brainupdaters/drlm-core/agent"
+	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/models"
+	"github.com/brainupdaters/drlm-core/plugin"
+	"github.com/brainupdaters/drlm-core/scheduler"
 
+	"github.com/brainupdaters/drlm-common/pkg/os"
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/jinzhu/gorm"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
 // AgentAdd adds a new Agent to the DB
 func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*drlm.AgentAddResponse, error) {
-	a := &models.Agent{}
-	a.Host = req.Host
-	a.Port = int(req.Port)
+	a := &models.Agent{
+		Host: req.Host,
+		Port: int(req.Port),
+	}
 
 	if err := agent.Add(req.User, req.Password, req.IsAdmin, a); err != nil {
 		return &drlm.AgentAddResponse{}, status.Errorf(codes.Unknown, "error adding the agent: %v", err)
@@ -109,4 +116,144 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 		Distro:        a.Distro,
 		DistroVersion: a.DistroVersion,
 	}, nil
+}
+
+// AgentPluginAdd adds a new plugin to the Agent
+func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error {
+	var (
+		host,
+		repo,
+		pName,
+		version string
+		arch []os.Arch
+		pOS  []os.OS
+		f    []byte
+	)
+
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				a := &models.Agent{
+					Host: host,
+				}
+
+				if err = a.Load(); err != nil {
+					if gorm.IsRecordNotFoundError(err) {
+						return status.Error(codes.NotFound, "error adding the plugin: agent not found")
+					}
+
+					return status.Errorf(codes.Unknown, "error adding the plugin: %v", err)
+				}
+
+				p := &models.Plugin{
+					AgentHost: a.Host,
+					Repo:      repo,
+					Name:      pName,
+					Version:   version,
+					Arch:      arch,
+					OS:        pOS,
+				}
+
+				if p.Add(); err != nil {
+					return status.Errorf(codes.Unknown, "error adding the plugin: %v", err)
+				}
+
+				if err := plugin.Install(p, a, f); err != nil {
+					return status.Errorf(codes.Unknown, "error installing the plugin: %v", err)
+				}
+
+				return stream.SendAndClose(&drlm.AgentPluginAddResponse{})
+			}
+		}
+
+		host = req.Host
+		repo = req.Repo
+		pName = req.Plugin
+		version = req.Version
+		arch = []os.Arch{}
+		for _, a := range req.Arch {
+			arch = append(arch, os.Arch(a))
+		}
+		pOS = []os.OS{}
+		for _, o := range req.Os {
+			pOS = append(pOS, os.OS(o))
+		}
+		f = append(f, req.Bin...)
+	}
+}
+
+// AgentPluginRemove removes a plugin from the Agent
+func (c *CoreServer) AgentPluginRemove(ctx context.Context, req *drlm.AgentPluginRemoveRequest) (*drlm.AgentPluginRemoveResponse, error) {
+	return &drlm.AgentPluginRemoveResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentPluginUpdate updates a plugin of the Agent
+func (c *CoreServer) AgentPluginUpdate(stream drlm.DRLM_AgentPluginUpdateServer) error {
+	return status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentPluginList lists the plugins of the Agent
+func (c *CoreServer) AgentPluginList(ctx context.Context, req *drlm.AgentPluginListRequest) (*drlm.AgentPluginListResponse, error) {
+	return &drlm.AgentPluginListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
+// AgentConnection creates the connection between the Agent and the Core. It's used for both notifying new jobs and for returning the response / updates of them
+func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) error {
+	for {
+		req, err := stream.Recv()
+
+		var host string
+		md, ok := metadata.FromIncomingContext(stream.Context())
+		if len(md.Get("tkn")) > 0 {
+			tkn := auth.Token(md.Get("tkn")[0])
+			host, ok = tkn.ValidateAgent()
+			if !ok {
+				return status.Error(codes.InvalidArgument, "invalid token")
+			}
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				if _, ok = scheduler.AgentConnections[host]; ok {
+					delete(scheduler.AgentConnections, host)
+				}
+
+				return nil
+			}
+		}
+
+		if req != nil {
+			switch req.MessageType {
+			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_CONN_ESTABLISH:
+				log.Infof("agent '%s' has established a connection", host)
+				scheduler.AgentConnections[host] = stream
+
+			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOB_UPDATE:
+				j := &models.Job{
+					Model: gorm.Model{
+						ID: uint(req.JobUpdate.JobId),
+					},
+				}
+
+				if err := j.Load(); err != nil {
+					if gorm.IsRecordNotFoundError(err) {
+						return status.Error(codes.NotFound, "job not found")
+					}
+
+					return status.Errorf(codes.Unknown, "error loading the job: %v", err)
+				}
+
+				j.Status = models.JobStatus(req.JobUpdate.Status)
+				j.Info += "\n" + req.JobUpdate.Info
+
+				if err := j.Update(); err != nil {
+					return status.Errorf(codes.Unknown, "error updating the job: %v", err)
+				}
+
+			default:
+				return status.Error(codes.InvalidArgument, "unknown message type")
+			}
+		}
+	}
 }

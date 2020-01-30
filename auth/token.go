@@ -58,6 +58,22 @@ func (t *Token) Validate() bool {
 	return true
 }
 
+// ValidateAgent checks whether an agent token (secret) is valid or not
+func (t *Token) ValidateAgent() (string, bool) {
+	agents, err := models.AgentList()
+	if err != nil {
+		return "", false
+	}
+
+	for _, a := range agents {
+		if a.Secret == t.String() {
+			return a.Host, true
+		}
+	}
+
+	return "", false
+}
+
 // Renew renews the validity of the token
 func (t *Token) Renew() (time.Time, error) {
 	claims := &TokenClaims{}
