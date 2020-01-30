@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/brainupdaters/drlm-core/minio"
@@ -99,8 +100,12 @@ func Add(usr, pwd string, isAdmin bool, a *models.Agent) error {
 		return err
 	}
 
-	if _, err := minio.CreateUser(fmt.Sprintf("drlm-agent-%d", a.ID)); err != nil {
+	if a.MinioKey, err = minio.CreateUser(fmt.Sprintf("drlm-agent-%d", a.ID)); err != nil {
 		return fmt.Errorf("error creating the Agent Minio user: %v", err)
+	}
+
+	if err := a.Update(); err != nil {
+		return err
 	}
 
 	return nil
@@ -144,36 +149,63 @@ func Install(host string, f []byte) error {
 		return fmt.Errorf("error installing DRLM Agent: %v", err)
 	}
 
+	if err := a.OS.CmdPkgWriteConfig(agentCli, a.User, "agent.toml", []byte(fmt.Sprintf(`[core]
+secret = "%s"
+
+[minio]
+access_key = "%s"
+secret_key = "%s"`, a.Secret, "drlm-agent-"+strconv.Itoa(int(a.ID)), a.MinioKey))); err != nil {
+		return fmt.Errorf("error configuring the DRLM Agent: %v", err)
+	}
+
 	return nil
 }
 
 // Sync updates the agent OS information, and all the plugins specific info such as OS, OS version, program versions...
-// func Sync(a *models.Agent) error {
-// 	s, err := ssh.NewSessionWithKey(a.Host, a.Port, a.User, cfg.Config.Security.SSHKeysPath, a.HostKeys)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer s.Close()
+func Sync(a *models.Agent) error {
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("error getting the current user: %v", err)
+	}
 
-// 	c := &os.ClientSSH{Session: s}
-// 	a.OS = os.DetectOS(c)
+	coreCli := &client.Local{}
+	coreOS, err := os.DetectOS(coreCli)
+	if err != nil {
+		return err
+	}
 
-// 	a.OSVersion, err = a.OS.DetectVersion(c)
-// 	if err != nil {
-// 		return err
-// 	}
+	keysPath, err := coreOS.CmdSSHGetKeysPath(coreCli, u.Username)
+	if err != nil {
+		return err
+	}
 
-// 	a.Distro, a.DistroVersion, err = a.OS.DetectDistro(c)
-// 	if err != nil {
-// 		return err
-// 	}
+	keys := strings.Split(a.HostKeys, "|||")
+	s, err := ssh.NewSessionWithKey(a.Host, a.Port, a.User, keysPath, keys)
+	if err != nil {
+		return fmt.Errorf("error opening the ssh session with the agent: %v", err)
+	}
+	defer s.Close()
+	c := &client.SSH{Session: s}
 
-// 	a.Arch, err = os.DetectArch(c)
-// 	if err != nil {
-// 		return err
-// 	}
+	a.OS, err = os.DetectOS(c)
+	if err != nil {
+		return err
+	}
 
-// 	// TODO: Call plugin updates
+	a.OSVersion, err = a.OS.DetectVersion(c)
+	if err != nil {
+		return err
+	}
 
-// 	return nil
-// }
+	a.Distro, a.DistroVersion, err = a.OS.DetectDistro(c)
+	if err != nil {
+		return err
+	}
+
+	a.Arch, err = os.DetectArch(c)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
