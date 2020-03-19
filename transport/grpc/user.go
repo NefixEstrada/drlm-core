@@ -20,7 +20,7 @@ import (
 
 // UserLogin logs in users and returns tokens
 func (c *CoreServer) UserLogin(ctx context.Context, req *drlm.UserLoginRequest) (*drlm.UserLoginResponse, error) {
-	tkn, expiresAt, err := auth.LoginLocal(req.Usr, req.Pwd)
+	tkn, expiresAt, err := auth.LoginLocal(c.ctx, req.Usr, req.Pwd)
 	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.UserLoginResponse{}, status.Errorf(codes.NotFound, `error logging in: user "%s" not found`, req.Usr)
@@ -46,7 +46,7 @@ func (c *CoreServer) UserTokenRenew(ctx context.Context, req *drlm.UserTokenRene
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if len(md.Get("tkn")) > 0 {
 			tkn := auth.Token(md.Get("tkn")[0])
-			expiresAt, err := tkn.Renew()
+			expiresAt, err := tkn.Renew(c.ctx)
 			if err != nil {
 				return &drlm.UserTokenRenewResponse{}, status.Error(codes.Unknown, err.Error())
 			}
@@ -69,7 +69,7 @@ func (c *CoreServer) UserAdd(ctx context.Context, req *drlm.UserAddRequest) (*dr
 		AuthType: types.Local,
 	}
 
-	if err := u.Add(); err != nil {
+	if err := u.Add(c.ctx); err != nil {
 		if models.IsErrUsrPwdStrength(err) {
 			return &drlm.UserAddResponse{}, status.Error(codes.InvalidArgument, err.Error())
 		}
@@ -86,7 +86,7 @@ func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest
 		Username: req.Usr,
 	}
 
-	if err := u.Delete(); err != nil {
+	if err := u.Delete(c.ctx); err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.UserDeleteResponse{}, status.Errorf(codes.NotFound, `error deleting the user "%s": not found`, req.Usr)
 		}
@@ -99,7 +99,7 @@ func (c *CoreServer) UserDelete(ctx context.Context, req *drlm.UserDeleteRequest
 
 // UserList lists all the users from the DB
 func (c *CoreServer) UserList(ctx context.Context, req *drlm.UserListRequest) (*drlm.UserListResponse, error) {
-	users, err := models.UserList()
+	users, err := models.UserList(c.ctx)
 	if err != nil {
 		return &drlm.UserListResponse{}, status.Error(codes.Unknown, err.Error())
 	}

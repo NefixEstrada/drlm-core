@@ -5,6 +5,7 @@ package grpc
 import (
 	"context"
 	"io"
+	"strings"
 
 	"github.com/brainupdaters/drlm-core/agent"
 	"github.com/brainupdaters/drlm-core/auth"
@@ -18,17 +19,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
 // AgentAdd adds a new Agent to the DB
 func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*drlm.AgentAddResponse, error) {
-	a := &models.Agent{
-		Host: req.Host,
-		Port: int(req.Port),
-	}
+	a := &models.Agent{Host: req.Host}
 
-	if err := agent.Add(req.User, req.Password, req.IsAdmin, a); err != nil {
+	if err := agent.Add(c.ctx, a); err != nil {
 		return &drlm.AgentAddResponse{}, status.Errorf(codes.Unknown, "error adding the agent: %v", err)
 	}
 
@@ -38,13 +37,30 @@ func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*
 // AgentInstall installs the agent binary to the agent machine
 func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 	var host string
+	var sshPort int
+	var sshUser string
+	var sshPwd string
 	var f []byte
 
 	for {
 		req, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				if err := agent.Install(host, f); err != nil {
+				a := &models.Agent{
+					Host:    host,
+					SSHPort: int(sshPort),
+					SSHUser: sshUser,
+				}
+
+				if err := a.Load(c.ctx); err != nil {
+					if gorm.IsRecordNotFoundError(err) {
+						return status.Error(codes.NotFound, "agent not found")
+					}
+
+					return status.Errorf(codes.Unknown, "error loading the agent from the DB: %v", err)
+				}
+
+				if err := agent.Install(c.ctx, a, sshPwd, f); err != nil {
 					return status.Error(codes.Unknown, err.Error())
 				}
 
@@ -57,6 +73,9 @@ func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 		}
 
 		host = req.Host
+		sshPort = int(req.SshPort)
+		sshUser = req.SshUser
+		sshPwd = req.SshPassword
 		f = append(f, req.Bin...)
 	}
 }
@@ -68,7 +87,7 @@ func (c *CoreServer) AgentDelete(ctx context.Context, req *drlm.AgentDeleteReque
 
 // AgentList returns a list of all the agents
 func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) (*drlm.AgentListResponse, error) {
-	agents, err := models.AgentList()
+	agents, err := models.AgentList(c.ctx)
 	if err != nil {
 		return &drlm.AgentListResponse{}, status.Error(codes.Unknown, err.Error())
 	}
@@ -77,8 +96,8 @@ func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) 
 	for _, a := range agents {
 		rsp.Agents = append(rsp.Agents, &drlm.AgentListResponse_Agent{
 			Host:          a.Host,
-			Port:          int32(a.Port),
-			User:          a.User,
+			Port:          int32(a.SSHPort),
+			User:          a.SSHUser,
 			Version:       a.Version,
 			Arch:          drlm.Arch(a.Arch),
 			Os:            drlm.OS(a.OS),
@@ -97,7 +116,7 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 		Host: req.Host,
 	}
 
-	if err := a.Load(); err != nil {
+	if err := a.Load(c.ctx); err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.AgentGetResponse{}, status.Error(codes.NotFound, "agent not found")
 		}
@@ -107,8 +126,8 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 
 	return &drlm.AgentGetResponse{
 		Host:          a.Host,
-		Port:          int32(a.Port),
-		User:          a.User,
+		Port:          int32(a.SSHPort),
+		User:          a.SSHUser,
 		Version:       a.Version,
 		Arch:          drlm.Arch(a.Arch),
 		Os:            drlm.OS(a.OS),
@@ -138,7 +157,7 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 					Host: host,
 				}
 
-				if err = a.Load(); err != nil {
+				if err = a.Load(c.ctx); err != nil {
 					if gorm.IsRecordNotFoundError(err) {
 						return status.Error(codes.NotFound, "error adding the plugin: agent not found")
 					}
@@ -155,11 +174,11 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 					OS:        pOS,
 				}
 
-				if p.Add(); err != nil {
+				if p.Add(c.ctx); err != nil {
 					return status.Errorf(codes.Unknown, "error adding the plugin: %v", err)
 				}
 
-				if err := plugin.Install(p, a, f); err != nil {
+				if err := plugin.Install(c.ctx, p, a, f); err != nil {
 					return status.Errorf(codes.Unknown, "error installing the plugin: %v", err)
 				}
 
@@ -204,19 +223,30 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 		req, err := stream.Recv()
 
 		var host string
-		md, ok := metadata.FromIncomingContext(stream.Context())
-		if len(md.Get("tkn")) > 0 {
-			tkn := auth.Token(md.Get("tkn")[0])
-			host, ok = tkn.ValidateAgent()
-			if !ok {
-				return status.Error(codes.InvalidArgument, "invalid token")
+		if req.MessageType != drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOIN_REQUEST {
+			md, ok := metadata.FromIncomingContext(stream.Context())
+			if ok && len(md.Get("tkn")) > 0 {
+				tkn := auth.Token(md.Get("tkn")[0])
+				host, ok = tkn.ValidateAgent(c.ctx)
+				if !ok {
+					return status.Error(codes.InvalidArgument, "invalid token")
+				}
+			} else {
+				return status.Error(codes.InvalidArgument, "unable to parse the token")
+			}
+
+		} else {
+			if p, ok := peer.FromContext(stream.Context()); ok {
+				host = strings.Split(p.Addr.String(), ":")[0]
+			} else {
+				return status.Error(codes.InvalidArgument, "unable to parse the agent host")
 			}
 		}
 
 		if err != nil {
 			if err == io.EOF {
-				if _, ok = scheduler.AgentConnections[host]; ok {
-					delete(scheduler.AgentConnections, host)
+				if _, ok := scheduler.AgentConnections.Get(host); ok {
+					scheduler.AgentConnections.Delete(host)
 				}
 
 				return nil
@@ -225,9 +255,17 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 
 		if req != nil {
 			switch req.MessageType {
+			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOIN_REQUEST:
+				scheduler.PendingAgentConnections.Add(host, stream)
+				agent.AddRequest(c.ctx, &models.Agent{
+					Host: host,
+					Arch: os.Arch(req.JoinRequest.Arch),
+					OS:   os.OS(req.JoinRequest.Os),
+				})
+
 			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_CONN_ESTABLISH:
 				log.Infof("agent '%s' has established a connection", host)
-				scheduler.AgentConnections[host] = stream
+				scheduler.AgentConnections.Add(host, stream)
 
 			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOB_UPDATE:
 				j := &models.Job{
@@ -236,7 +274,7 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 					},
 				}
 
-				if err := j.Load(); err != nil {
+				if err := j.Load(c.ctx); err != nil {
 					if gorm.IsRecordNotFoundError(err) {
 						return status.Error(codes.NotFound, "job not found")
 					}
@@ -247,7 +285,7 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 				j.Status = models.JobStatus(req.JobUpdate.Status)
 				j.Info += "\n" + req.JobUpdate.Info
 
-				if err := j.Update(); err != nil {
+				if err := j.Update(c.ctx); err != nil {
 					return status.Errorf(codes.Unknown, "error updating the job: %v", err)
 				}
 

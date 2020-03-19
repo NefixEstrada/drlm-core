@@ -5,7 +5,7 @@ package db
 import (
 	"fmt"
 
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 
 	"github.com/jinzhu/gorm"
 	log "github.com/sirupsen/logrus"
@@ -14,25 +14,22 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
-// DB is the connection with the DB
-var DB *gorm.DB
-
 // Init creates the DB connection and does the migrations
-func Init() {
+func Init(ctx *context.Context) {
 	connStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4",
-		cfg.Config.DB.Usr,
-		cfg.Config.DB.Pwd,
-		cfg.Config.DB.Host,
-		cfg.Config.DB.Port,
-		cfg.Config.DB.DB,
+		ctx.Cfg.DB.Usr,
+		ctx.Cfg.DB.Pwd,
+		ctx.Cfg.DB.Host,
+		ctx.Cfg.DB.Port,
+		ctx.Cfg.DB.DB,
 	)
 
 	var err error
-	DB, err = gorm.Open("mysql", connStr)
+	ctx.DB, err = gorm.Open("mysql", connStr)
 	if err != nil {
 		log.Fatalf("error connecting to the DB: %v", err)
 	}
-	DB.LogMode(false)
+	ctx.DB.LogMode(false)
 
 	log.Info("successfully connected to the DB")
 }

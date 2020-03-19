@@ -3,7 +3,6 @@
 package grpc_test
 
 import (
-	"context"
 	"errors"
 	"regexp"
 	"testing"
@@ -11,15 +10,15 @@ import (
 
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 	"github.com/brainupdaters/drlm-core/utils/tests"
-	"github.com/jinzhu/gorm"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -29,15 +28,15 @@ import (
 type TestUserSuite struct {
 	suite.Suite
 	c    *grpc.CoreServer
-	ctx  context.Context
+	ctx  *context.Context
 	mock sqlmock.Sqlmock
 }
 
 func (s *TestUserSuite) SetupTest() {
-	s.c = &grpc.CoreServer{}
-	s.ctx = context.Background()
-	s.mock = tests.GenerateDB(s.T())
-	tests.GenerateCfg(s.T())
+	s.ctx = tests.GenerateCtx()
+	s.mock = tests.GenerateDB(s.T(), s.ctx)
+	tests.GenerateCfg(s.T(), s.ctx)
+	s.c = grpc.NewCoreServer(s.ctx)
 }
 
 func (s *TestUserSuite) AfterTest() {
@@ -114,11 +113,11 @@ func (s *TestUserSuite) TestLogin() {
 
 func (s *TestUserSuite) TestTokenRenew() {
 	s.Run("should renew the token correctly", func() {
-		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnRows(sqlmock.NewRows([]string{"id", "username", "updated_at", "created_at"}).
+		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users"  WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WillReturnRows(sqlmock.NewRows([]string{"id", "username", "created_at", "updated_at"}).
 			AddRow(1, "nefix", time.Now().Add(-10*time.Minute), time.Now().Add(-10*time.Minute)),
 		)
 
-		originalExpirationTime := time.Now().Add(-cfg.Config.Security.TokensLifespan)
+		originalExpirationTime := time.Now().Add(-s.ctx.Cfg.Security.TokensLifespan)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr:         "nefix",
@@ -127,7 +126,7 @@ func (s *TestUserSuite) TestTokenRenew() {
 				ExpiresAt: originalExpirationTime.Unix(),
 				IssuedAt:  originalExpirationTime.Add(-1 * time.Minute).Unix(),
 			},
-		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
+		}).SignedString([]byte(s.ctx.Cfg.Security.TokensSecret))
 		s.Require().Nil(err)
 
 		ctx := metadata.NewIncomingContext(s.ctx, metadata.Pairs("tkn", signedTkn))
@@ -149,7 +148,7 @@ func (s *TestUserSuite) TestTokenRenew() {
 	})
 
 	s.Run("should return an error if no token was provided", func() {
-		rsp, err := s.c.UserTokenRenew(s.ctx, &drlm.UserTokenRenewRequest{})
+		rsp, err := s.c.UserTokenRenew(context.Background(), &drlm.UserTokenRenewRequest{})
 
 		s.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
 		s.Equal(&drlm.UserTokenRenewResponse{}, rsp)
@@ -174,8 +173,6 @@ func (s *TestUserSuite) TestAdd() {
 	})
 
 	s.Run("should return an error if the password is too weak", func() {
-		s.mock.ExpectBegin()
-
 		req := &drlm.UserAddRequest{
 			Usr: "nefix",
 			Pwd: "",

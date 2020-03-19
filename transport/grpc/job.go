@@ -24,7 +24,7 @@ func (c *CoreServer) JobSchedule(ctx context.Context, req *drlm.JobScheduleReque
 		t = time.Unix(req.Time.Seconds, int64(req.Time.Nanos))
 	}
 
-	if err := scheduler.AddJob(req.AgentHost, req.Name, req.Config, t); err != nil {
+	if err := scheduler.AddJob(c.ctx, req.AgentHost, req.Name, req.Config, t); err != nil {
 		return &drlm.JobScheduleResponse{}, status.Error(codes.Unknown, err.Error())
 	}
 
@@ -39,7 +39,7 @@ func (c *CoreServer) JobCancel(ctx context.Context, req *drlm.JobCancelRequest) 
 // JobList returns a list with the the jobs of an agent. If the agent Host is "", it will return all the jobs
 func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*drlm.JobListResponse, error) {
 	if req.AgentHost == "" {
-		jobs, err := models.JobList()
+		jobs, err := models.JobList(c.ctx)
 		if err != nil {
 			return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
 		}
@@ -47,8 +47,9 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		rsp := &drlm.JobListResponse{}
 		for _, j := range jobs {
 			rsp.Jobs = append(rsp.Jobs, &drlm.JobListResponse_Job{
-				Id:        uint32(j.ID),
-				Name:      j.Plugin.String(),
+				Id: uint32(j.ID),
+				// TODO: Query plugin names
+				// Name:      j.Plugin.String(),
 				AgentHost: j.AgentHost,
 				Status:    drlm.JobStatus(j.Status),
 				// Info: ,
@@ -60,7 +61,7 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 
 	a := &models.Agent{Host: req.AgentHost}
 
-	if err := a.Load(); err != nil {
+	if err := a.Load(c.ctx); err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return &drlm.JobListResponse{}, status.Error(codes.NotFound, "agent not found")
 		}
@@ -68,7 +69,7 @@ func (c *CoreServer) JobList(ctx context.Context, req *drlm.JobListRequest) (*dr
 		return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
 	}
 
-	if err := a.LoadJobs(); err != nil {
+	if err := a.LoadJobs(c.ctx); err != nil {
 		return &drlm.JobListResponse{}, status.Error(codes.Unknown, err.Error())
 	}
 

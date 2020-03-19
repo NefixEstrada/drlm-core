@@ -3,26 +3,24 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/brainupdaters/drlm-core/cfg"
-	"github.com/stretchr/testify/require"
+	"github.com/brainupdaters/drlm-core/context"
 
-	"github.com/brainupdaters/drlm-common/pkg/fs"
 	"github.com/brainupdaters/drlm-common/pkg/test"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/require"
 )
 
 // GenerateCfg creates a configuration file with the default values
-func GenerateCfg(t *testing.T) {
+func GenerateCfg(t *testing.T, ctx *context.Context) {
 	require := require.New(t)
-	fs.FS = afero.NewMemMapFs()
 
 	s := test.Test{}
 	s.SetT(t)
 
-	err := afero.WriteFile(fs.FS, "/etc/drlm/core.toml", []byte(fmt.Sprintf(`[grpc]
+	err := afero.WriteFile(ctx.FS, "/etc/drlm/core.toml", []byte(`[grpc]
 cert_path = "/tls/godev/godev.crt"
 key_path = "/tls/godev/godev.key"
 
@@ -31,10 +29,9 @@ bcrypt_cost = 1
 tokens_secret = "Ⓐ"
 
 [minio]
-host = "localhost"
-port = %d
-ssl = false`, s.FreePort())), 0644)
+host = "127.0.0.1"
+ssl = false`), 0644)
 	require.Nil(err)
 
-	cfg.Init("")
+	cfg.Init(ctx, "")
 }

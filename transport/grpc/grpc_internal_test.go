@@ -10,106 +10,122 @@ import (
 
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/cfg"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	gRPC "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
-func TestUnaryInterceptor(t *testing.T) {
-	assert := assert.New(t)
+type TestGRPCInternalSuite struct {
+	suite.Suite
+	c   *CoreServer
+	ctx context.Context
+}
 
-	t.Run("should check if the user is authenticated before executing the handler", func(t *testing.T) {
-		ctx := context.Background()
+func (s *TestGRPCInternalSuite) SetupTest() {
+	s.c = &CoreServer{tests.GenerateCtx()}
+	s.ctx = context.Background()
+}
+
+func TestGRPCInternal(t *testing.T) {
+	suite.Run(t, &TestGRPCInternalSuite{})
+}
+
+func (s *TestGRPCInternalSuite) TestUnaryInterceptor() {
+	h := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return "", errors.New("failed! :0")
+	}
+
+	s.Run("should check if the user is authenticated before executing the handler", func() {
 		info := &gRPC.UnaryServerInfo{
 			FullMethod: "/drlm.DRLM/UserAdd",
 		}
-		h := func(ctx context.Context, req interface{}) (interface{}, error) {
-			return "", errors.New("add failed! :0")
-		}
 
-		rsp, err := unaryInterceptor(ctx, "", info, h)
+		rsp, err := s.c.unaryInterceptor(s.ctx, "", info, h)
 
-		assert.Nil(rsp)
-		assert.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
+		s.Nil(rsp)
+		s.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
 	})
 
-	t.Run("should not check for the authentication if the method is the UserLogin method", func(t *testing.T) {
-		ctx := context.Background()
+	s.Run("should not check for the authentication if the method is the UserLogin method", func() {
 		info := &gRPC.UnaryServerInfo{
 			FullMethod: "/drlm.DRLM/UserLogin",
 		}
-		h := func(ctx context.Context, req interface{}) (interface{}, error) {
-			return "", errors.New("login failed! :0")
-		}
 
-		rsp, err := unaryInterceptor(ctx, "", info, h)
+		rsp, err := s.c.unaryInterceptor(s.ctx, "", info, h)
 
-		assert.Equal("", rsp)
-		assert.EqualError(err, "login failed! :0")
+		s.Equal("", rsp)
+		s.EqualError(err, "failed! :0")
 	})
 
-	t.Run("should not check for the authentication if the method is the UserTokenRenew method", func(t *testing.T) {
+	s.Run("should not check for the authentication if the method is the UserTokenRenew method", func() {
 		ctx := context.Background()
 		info := &gRPC.UnaryServerInfo{
 			FullMethod: "/drlm.DRLM/UserTokenRenew",
 		}
-		h := func(ctx context.Context, req interface{}) (interface{}, error) {
-			return "", errors.New("renew failed! :0")
-		}
 
-		rsp, err := unaryInterceptor(ctx, "", info, h)
+		rsp, err := s.c.unaryInterceptor(ctx, "", info, h)
 
-		assert.Equal("", rsp)
-		assert.EqualError(err, "renew failed! :0")
+		s.Equal("", rsp)
+		s.EqualError(err, "failed! :0")
 	})
 }
 
-func TestCheckAuth(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("should return nil if the token is valid", func(t *testing.T) {
-		tests.GenerateCfg(t)
+func (s *TestGRPCInternalSuite) TestCheckAuth() {
+	s.Run("should return nil if the token is valid", func() {
+		tests.GenerateCfg(s.T(), s.c.ctx)
 
 		signedTkn, err := jwt.NewWithClaims(jwt.SigningMethodHS512, &auth.TokenClaims{
 			Usr: "nefix",
 			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(cfg.Config.Security.TokensLifespan).Unix(),
+				ExpiresAt: time.Now().Add(s.c.ctx.Cfg.Security.TokensLifespan).Unix(),
 			},
-		}).SignedString([]byte(cfg.Config.Security.TokensSecret))
-		assert.Nil(err)
+		}).SignedString([]byte(s.c.ctx.Cfg.Security.TokensSecret))
+		s.NoError(err)
 
-		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("tkn", signedTkn))
+		inCtx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("tkn", signedTkn))
 
-		err = checkAuth(ctx)
+		err = checkAuth(s.c.ctx, inCtx)
 
-		assert.Nil(err)
+		s.NoError(err)
 	})
 
-	t.Run("should return an error if the token is invalid", func(t *testing.T) {
-		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("tkn", "invalid token"))
+	s.Run("should return an error if the token is invalid", func() {
+		inCtx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("tkn", "invalid token"))
 
-		err := checkAuth(ctx)
+		err := checkAuth(s.c.ctx, inCtx)
 
-		assert.Equal(status.Error(codes.InvalidArgument, "invalid token"), err)
+		s.Equal(status.Error(codes.InvalidArgument, "invalid token"), err)
 	})
 
-	t.Run("should return an error if there's no token", func(t *testing.T) {
-		err := checkAuth(context.Background())
+	s.Run("should return an error if there's no token", func() {
+		err := checkAuth(s.c.ctx, context.Background())
 
-		assert.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
+		s.Equal(status.Error(codes.Unauthenticated, "not authenticated"), err)
 	})
 }
 
-func TestParseAuthType(t *testing.T) {
-	assert := assert.New(t)
+func (s *TestGRPCInternalSuite) TestParseAuthType() {
+	t := []struct {
+		in  types.Type
+		out drlm.AuthType
+	}{
+		{
+			types.Unknown,
+			drlm.AuthType_AUTH_UNKNOWN,
+		},
+		{
+			types.Local,
+			drlm.AuthType_AUTH_LOCAL,
+		},
+	}
 
-	assert.Equal(drlm.AuthType_AUTH_UNKNOWN, parseAuthType(types.Unknown))
-	assert.Equal(drlm.AuthType_AUTH_LOCAL, parseAuthType(types.Local))
+	for _, tt := range t {
+		s.Equal(tt.out, parseAuthType(tt.in))
+	}
 }

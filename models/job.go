@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/context"
 
 	"github.com/jinzhu/gorm"
 )
@@ -25,7 +25,7 @@ type Job struct {
 	BucketName string `gorm:"not null;unique"`
 	Info       string
 
-	Mu             sync.Mutex `gorm:"-"`
+	Mux            sync.Mutex `gorm:"-"`
 	ReconnAttempts int
 }
 
@@ -48,10 +48,10 @@ const (
 )
 
 // JobList returns a list with all the jobs
-func JobList() ([]*Job, error) {
+func JobList(ctx *context.Context) ([]*Job, error) {
 	jobs := []*Job{}
 
-	if err := db.DB.Find(&jobs).Error; err != nil {
+	if err := ctx.DB.Find(&jobs).Error; err != nil {
 		return []*Job{}, fmt.Errorf("error getting the jobs list: %v", err)
 	}
 
@@ -59,8 +59,8 @@ func JobList() ([]*Job, error) {
 }
 
 // Add creates a new job in the DB
-func (j *Job) Add() error {
-	if err := db.DB.Create(j).Error; err != nil {
+func (j *Job) Add(ctx *context.Context) error {
+	if err := ctx.DB.Create(j).Error; err != nil {
 		return fmt.Errorf("error adding the job to the DB: %v", err)
 	}
 
@@ -68,11 +68,11 @@ func (j *Job) Add() error {
 }
 
 // Load loads the job from the DB
-func (j *Job) Load() error {
+func (j *Job) Load(ctx *context.Context) error {
 	var p Plugin
 	j.Plugin = &p
 
-	if err := db.DB.First(j).Related(&p, "PluginID").Error; err != nil {
+	if err := ctx.DB.First(j).Related(&p, "PluginID").Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return err
 		}
@@ -84,8 +84,8 @@ func (j *Job) Load() error {
 }
 
 // Update updates the job in the DB
-func (j *Job) Update() error {
-	if err := db.DB.Save(j).Error; err != nil {
+func (j *Job) Update(ctx *context.Context) error {
+	if err := ctx.DB.Save(j).Error; err != nil {
 		return fmt.Errorf("error updating the job: %v", err)
 	}
 

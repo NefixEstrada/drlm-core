@@ -3,78 +3,58 @@
 package migrations
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-	"syscall"
-
-	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 
 	"github.com/jinzhu/gorm"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
+	"gopkg.in/gormigrate.v1"
 )
 
 // Migrate runs all the DB migrations
-func Migrate() {
-	// 2019/07/16 10:02 - Add the User model
-	if err := db.DB.AutoMigrate(&models.User{}).Error; err != nil {
-		log.Fatalf("error migrating the User model: %v", err)
-	}
-	// 2019/10/16 11:52 - Add the Agent and Job models
-	if err := db.DB.AutoMigrate(&models.Agent{}).Error; err != nil {
-		log.Fatalf("error migrating the Agent model: %v", err)
-	}
+func Migrate(ctx *context.Context) {
+	m := gormigrate.New(ctx.DB, gormigrate.DefaultOptions, []*gormigrate.Migration{
+		{
+			ID: "201907161002",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&models.User{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("users").Error
+			},
+		},
+		{
+			ID: "201910161152",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&models.Agent{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("agents").Error
+			},
+		},
+		{
+			ID: "201910161153",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&models.Job{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("jobs").Error
+			},
+		},
+		{
+			ID: "202001271226",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&models.Plugin{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("plugins").Error
+			},
+		},
+	})
 
-	if err := db.DB.AutoMigrate(&models.Job{}).Error; err != nil {
-		log.Fatalf("error migrating the Agent model: %v", err)
-	}
-
-	// 2020/01/27 12:26 - Add the plugin model
-	if err := db.DB.AutoMigrate(&models.Plugin{}).Error; err != nil {
-		log.Fatalf("error migrating the Plugin model: %v", err)
-	}
-
-	// Create the admin user if it doesn't exist
-	u := models.User{Username: "admin"}
-	if err := u.Load(); err != nil {
-		if err != gorm.ErrRecordNotFound {
-			log.Fatalf("error creating the admin user: %v", err)
-		}
-
-		fmt.Print("Please, set the admin password: ")
-		bPwd, err := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		if err != nil {
-			log.Fatalf("error creating the admin user: error reading the password: %v", err)
-		}
-
-		fmt.Print("Please, repeat admin password: ")
-		bPwd2, err := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		if err != nil {
-			log.Fatalf("error creating the admin user: error reading the password: %v", err)
-		}
-
-		if !bytes.Equal(bPwd, bPwd2) {
-			log.Fatalf("error creating the admin user: passwords don't match")
-		}
-
-		pwd := strings.TrimSpace(string(bPwd))
-
-		u = models.User{
-			Username: "admin",
-			Password: pwd,
-			AuthType: types.Local,
-		}
-
-		if err := u.Add(); err != nil {
-			if models.IsErrUsrPwdStrength(err) {
-				log.Fatalf(err.Error())
-			}
-		}
+	if err := m.Migrate(); err != nil {
+		log.Fatalf("error running the DB migrations: %v", err)
 	}
 
+	log.Info("successfully run the DB migrations")
 }

@@ -3,14 +3,13 @@
 package grpc
 
 import (
-	"context"
+	stdContext "context"
 	"fmt"
 	"net"
-	"sync"
 
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	log "github.com/sirupsen/logrus"
@@ -25,24 +24,33 @@ import (
 const API = "v1.0.0"
 
 // CoreServer is the implementation of the DRLM Core GRPC server
-type CoreServer struct{}
+type CoreServer struct {
+	ctx *context.Context
+}
+
+// NewCoreServer returns a new CoreServer struct with the context inside
+func NewCoreServer(ctx *context.Context) *CoreServer {
+	return &CoreServer{ctx}
+}
 
 // Serve starts the DRLM Core GRPC server
-func Serve(ctx context.Context) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Config.GRPC.Port))
+func Serve(ctx *context.Context) {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", ctx.Cfg.GRPC.Port))
 	if err != nil {
-		log.Fatalf("error listening at port %d: %v", cfg.Config.GRPC.Port, err)
+		log.Fatalf("error listening at port %d: %v", ctx.Cfg.GRPC.Port, err)
 	}
+
+	c := NewCoreServer(ctx)
 
 	var opts = []gRPC.ServerOption{
-		gRPC.UnaryInterceptor(unaryInterceptor),
-		gRPC.StreamInterceptor(streamInterceptor),
+		gRPC.UnaryInterceptor(c.unaryInterceptor),
+		gRPC.StreamInterceptor(c.streamInterceptor),
 	}
 
-	if cfg.Config.GRPC.TLS {
+	if ctx.Cfg.GRPC.TLS {
 		creds, err := credentials.NewServerTLSFromFile(
-			cfg.Config.GRPC.CertPath,
-			cfg.Config.GRPC.KeyPath,
+			ctx.Cfg.GRPC.CertPath,
+			ctx.Cfg.GRPC.KeyPath,
 		)
 		if err != nil {
 			log.Fatalf("error loading the TLS credentials: %v", err)
@@ -52,9 +60,9 @@ func Serve(ctx context.Context) {
 	}
 
 	grpcServer := gRPC.NewServer(opts...)
-	drlm.RegisterDRLMServer(grpcServer, &CoreServer{})
+	drlm.RegisterDRLMServer(grpcServer, c)
 
-	log.Infof("DRLM Core listenning at port :%d", cfg.Config.GRPC.Port)
+	log.Infof("DRLM Core listenning at port :%d", ctx.Cfg.GRPC.Port)
 	go func() {
 		if err = grpcServer.Serve(lis); err != nil {
 			if err != gRPC.ErrServerStopped {
@@ -66,26 +74,26 @@ func Serve(ctx context.Context) {
 	select {
 	case <-ctx.Done():
 		grpcServer.Stop()
-		ctx.Value("wg").(*sync.WaitGroup).Done()
+		ctx.WG.Done()
 	}
 }
 
-func unaryInterceptor(ctx context.Context, req interface{}, info *gRPC.UnaryServerInfo, handler gRPC.UnaryHandler) (interface{}, error) {
+func (c *CoreServer) unaryInterceptor(inCtx stdContext.Context, req interface{}, info *gRPC.UnaryServerInfo, handler gRPC.UnaryHandler) (interface{}, error) {
 	// If it's not the login method, check for the token authenticity
 	if info.FullMethod != "/drlm.DRLM/UserLogin" && info.FullMethod != "/drlm.DRLM/UserTokenRenew" {
-		if err := checkAuth(ctx); err != nil {
+		if err := checkAuth(c.ctx, inCtx); err != nil {
 			return nil, err
 		}
 	}
 
-	return handler(ctx, req)
+	return handler(inCtx, req)
 }
 
-func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.StreamServerInfo, handler gRPC.StreamHandler) error {
+func (c *CoreServer) streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.StreamServerInfo, handler gRPC.StreamHandler) error {
 	// DEV NOTE: The AgentConnection does the agent authentication check because there's no other way to send the host (that gets
 	// 			 returned from the auth check) to the AgentConnection function
 	if info.FullMethod != "/drlm.DRLM/AgentConnection" {
-		if err := checkAuth(stream.Context()); err != nil {
+		if err := checkAuth(c.ctx, stream.Context()); err != nil {
 			return err
 		}
 	}
@@ -93,11 +101,11 @@ func streamInterceptor(srv interface{}, stream gRPC.ServerStream, info *gRPC.Str
 	return handler(srv, stream)
 }
 
-func checkAuth(ctx context.Context) error {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
+func checkAuth(ctx *context.Context, inCtx stdContext.Context) error {
+	if md, ok := metadata.FromIncomingContext(inCtx); ok {
 		if len(md.Get("tkn")) > 0 {
 			tkn := auth.Token(md.Get("tkn")[0])
-			if !tkn.Validate() {
+			if !tkn.Validate(ctx) {
 				return status.Error(codes.InvalidArgument, "invalid token")
 			}
 
