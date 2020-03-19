@@ -3,15 +3,11 @@
 package scheduler
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"sync"
 	"time"
 
-	"github.com/brainupdaters/drlm-core/agent"
-	"github.com/brainupdaters/drlm-core/minio"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
@@ -20,146 +16,115 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	jobs []*models.Job
-	// AgentConnections are all the active agent connections
-	AgentConnections = map[string]drlm.DRLM_AgentConnectionServer{}
-)
+var errAgentUnavailable = errors.New("agent unavailable")
 
 // Init starts the scheduler
-func Init(ctx context.Context) {
-	var err error
-	jobs, err = models.JobList()
+func Init(ctx *context.Context) {
+	// TODO: Think if we need all the jobs or just the ones that need to be executed
+	j, err := models.JobList(ctx)
 	if err != nil {
 		log.Fatalf("error initializating the scheduler: %v", err)
 	}
 
+	jobs.Add(j...)
+
+	queue := make(chan *models.Job)
+	go scheduler(ctx, queue)
+	go worker(ctx, queue)
+
+	// Since both the scheduler and the worker use the waitgroup it has to be incremented by 1
+	ctx.WG.Add(1)
+}
+
+// scheduler is the main function of the scheduler. It has timers that execute the respective functions when needed
+func scheduler(ctx *context.Context, queue chan *models.Job) {
 	ticker := time.NewTicker(5 * time.Second)
-	daily := time.NewTicker(24 * time.Hour)
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				for _, j := range jobs {
-					j.Mu.Lock()
-					if time.Now().After(j.Time) && j.Status == models.JobStatusScheduled {
-
-						if err := startJob(j); err != nil {
-							if err == errAgentUnavailable && j.ReconnAttempts < 10 {
-								j.ReconnAttempts++
-
-							} else {
-								j.Status = models.JobStatusFailed
-								j.Info = err.Error()
-
-								log.Errorf("error starting the job: %v", err)
-							}
-
-						} else {
-							j.Status = models.JobStatusRunning
-						}
-
-						if err := j.Update(); err != nil {
-							log.Error(err.Error())
-						}
-					}
-					j.Mu.Unlock()
+	for {
+		select {
+		case <-ticker.C:
+			for _, j := range jobs.List() {
+				j.Mux.Lock()
+				if time.Now().After(j.Time) && j.Status == models.JobStatusScheduled {
+					queue <- j
+				} else {
+					j.Mux.Unlock()
 				}
-
-			case <-daily.C:
-				agents, err := models.AgentList()
-				if err != nil {
-					log.Fatalf("scheduler: error listing the agents: %v", err)
-				}
-
-				for _, a := range agents {
-					if err := agent.Sync(a); err != nil {
-						log.Errorf("error syncing the agent '%s': %v", a.Host, err)
-					}
-				}
-
-			case <-ctx.Done():
-				// TODO: This gets executed twice!
-				// TODO: Wait for all the jobs to stop!
-				ctx.Value("wg").(*sync.WaitGroup).Done()
-				return
 			}
+
+		// case <-daily.C:
+		// TODO: Implement Cron for "Repetitive Jobs"
+		// TODO: Make sync a plugin and don't
+		// agents, err := models.AgentList(ctx)
+		// if err != nil {
+		// 	log.Fatalf("scheduler: error listing the agents: %v", err)
+		// }
+
+		// for _, a := range agents {
+		// 	if err := agent.Sync(ctx, a); err != nil {
+		// 		log.Errorf("error syncing the agent '%s': %v", a.Host, err)
+		// 	}
+		// }
+
+		case <-ctx.Done():
+			// TODO: This gets executed twice!
+			ctx.WG.Done()
+			return
 		}
-	}()
+	}
 }
 
-// ErrPluginNotFound gets returned if the plugin (job name) that has been requested is not found in the agent
-var ErrPluginNotFound = errors.New("plugin for the job not found in the agent")
+func worker(ctx *context.Context, queue chan *models.Job) {
+	for {
+		select {
+		case j := <-queue:
+			stream, ok := AgentConnections.Get(j.AgentHost)
+			if !ok {
+				handleJobError(j, errAgentUnavailable)
 
-// AddJob adds a new job to the scheduler
-func AddJob(host, job, config string, t time.Time) error {
-	a := &models.Agent{Host: host}
-	if err := a.Load(); err != nil {
-		return err
-	}
+			} else {
+				if err := stream.Send(&drlm.AgentConnectionFromCore{
+					MessageType: drlm.AgentConnectionFromCore_MESSAGE_TYPE_JOB_NEW,
+					JobNew: &drlm.AgentConnectionFromCore_JobNew{
+						Id:     uint32(j.ID),
+						Name:   fmt.Sprintf("drlm-plugin-%s-%s-%s", j.Plugin.Repo, j.Plugin.Name, j.Plugin.Version),
+						Config: j.Config,
+						Target: j.BucketName,
+					},
+				}); err != nil {
+					if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+						err = errAgentUnavailable
+					}
 
-	if err := a.LoadPlugins(); err != nil {
-		return err
-	}
+					handleJobError(j, err)
 
-	j := &models.Job{
-		Status:    models.JobStatusScheduled,
-		AgentHost: a.Host,
-		Config:    config,
-		Time:      t,
-	}
+				} else {
+					j.Status = models.JobStatusRunning
+				}
+			}
 
-	for _, p := range a.Plugins {
-		if p.String() == job {
-			j.Plugin = p
-			j.PluginID = p.ID
+			if err := j.Update(ctx); err != nil {
+				log.Error(err.Error())
+			}
+
+			j.Mux.Unlock()
+
+		case <-ctx.Done():
+			// TODO: Wait for all the jobs to stop!
+			ctx.WG.Done()
+			return
 		}
 	}
-	if j.PluginID == 0 {
-		return ErrPluginNotFound
-	}
-
-	// TODO: Check Agent availability
-
-	bName, err := minio.MakeBucketForUser("drlm-agent-" + strconv.Itoa(int(a.ID)))
-	if err != nil {
-		return fmt.Errorf("error adding the job: %v", err)
-	}
-	j.BucketName = bName
-
-	if err := j.Add(); err != nil {
-		return fmt.Errorf("error adding the job: %v", err)
-	}
-
-	jobs = append(jobs, j)
-
-	return nil
 }
 
-var errAgentUnavailable = errors.New("agent unavailable")
+func handleJobError(j *models.Job, err error) {
+	if err == errAgentUnavailable && j.ReconnAttempts < 10 {
+		j.ReconnAttempts++
 
-func startJob(j *models.Job) error {
-	stream, ok := AgentConnections[j.AgentHost]
-	if !ok {
-		return errAgentUnavailable
+	} else {
+		j.Status = models.JobStatusFailed
+		j.Info = err.Error()
+
+		log.Errorf("error starting the job: %v", err)
 	}
-
-	if err := stream.Send(&drlm.AgentConnectionFromCore{
-		MessageType: drlm.AgentConnectionFromCore_MESSAGE_TYPE_JOB_NEW,
-		JobNew: &drlm.AgentConnectionFromCore_JobNew{
-			Id:     uint32(j.ID),
-			Name:   fmt.Sprintf("drlm-plugin-%s-%s-%s", j.Plugin.Repo, j.Plugin.Name, j.Plugin.Version),
-			Config: j.Config,
-			Target: j.BucketName,
-		},
-	}); err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
-			return errAgentUnavailable
-		}
-
-		return fmt.Errorf("error starting the job: %v", err)
-	}
-
-	return nil
 }

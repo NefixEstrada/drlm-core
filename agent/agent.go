@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/minio"
 	"github.com/brainupdaters/drlm-core/models"
 
-	"github.com/brainupdaters/drlm-common/pkg/fs"
 	"github.com/brainupdaters/drlm-common/pkg/os"
 	"github.com/brainupdaters/drlm-common/pkg/os/client"
 	"github.com/brainupdaters/drlm-common/pkg/ssh"
@@ -20,14 +20,38 @@ import (
 )
 
 // Add connects to the Agent host, creates the drlm user and copies the keys to that user, which has to be admin
-func Add(usr, pwd string, isAdmin bool, a *models.Agent) error {
-	// Set default values
-	if a.Port == 0 {
-		a.Port = 22
+func Add(ctx *context.Context, a *models.Agent) error {
+	a.Accepted = true
+
+	var err error
+	if a.MinioKey, err = minio.CreateUser(ctx, fmt.Sprintf("drlm-agent-%d", a.ID)); err != nil {
+		return fmt.Errorf("error creating the agent minio user: %v", err)
 	}
 
-	if a.User == "" {
-		a.User = "drlm"
+	// Add the Agent to the DB
+	if err := a.Add(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AddRequest adds a new agent request
+func AddRequest(ctx *context.Context, a *models.Agent) error {
+	a.Accepted = false
+
+	if err := a.Add(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Install installs the agent binary, sets up the daemon and config and starts the service
+func Install(ctx *context.Context, a *models.Agent, sshPwd string, f []byte) error {
+	// Set default values
+	if a.SSHPort == 0 {
+		a.SSHPort = 22
 	}
 
 	coreCli := &client.Local{}
@@ -36,23 +60,23 @@ func Add(usr, pwd string, isAdmin bool, a *models.Agent) error {
 		return err
 	}
 
-	keys, err := coreOS.CmdSSHGetHostKeys(coreCli, a.Host, a.Port)
+	keys, err := coreOS.CmdSSHGetHostKeys(coreCli, a.Host, a.SSHPort)
+	if err != nil {
+		return err
+	}
+	a.SSHHostKeys = strings.Join(keys, "|||")
+
+	if err := a.Update(ctx); err != nil {
+		return fmt.Errorf("error updating the agent in the DB: %v", err)
+	}
+
+	// Connect to the host through user and password
+	s, err := ssh.NewSessionWithPassword(a.Host, a.SSHPort, a.SSHUser, sshPwd, keys)
 	if err != nil {
 		return err
 	}
 
-	a.HostKeys = strings.Join(keys, "|||")
-
-	// Connect to the host
-	s, err := ssh.NewSessionWithPassword(a.Host, a.Port, usr, pwd, keys)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-
-	agentCli := &client.SSH{
-		Session: s,
-	}
+	agentCli := &client.SSH{Session: s}
 
 	a.OS, err = os.DetectOS(agentCli)
 	if err != nil {
@@ -64,10 +88,6 @@ func Add(usr, pwd string, isAdmin bool, a *models.Agent) error {
 		return err
 	}
 
-	if err := a.OS.CmdUserCreate(agentCli, a.User, "changeme"); err != nil {
-		return err
-	}
-
 	u, err := user.Current()
 	if err != nil {
 		return err
@@ -78,78 +98,31 @@ func Add(usr, pwd string, isAdmin bool, a *models.Agent) error {
 		return err
 	}
 
-	pubKey, err := afero.ReadFile(fs.FS, filepath.Join(keysPath, "id_rsa.pub"))
+	pubKey, err := afero.ReadFile(ctx.FS, filepath.Join(keysPath, "id_rsa.pub"))
 	if err != nil {
 		return fmt.Errorf("error reading the Core SSH public key: %v", err)
 	}
 
-	if err := a.OS.CmdSSHCopyID(agentCli, a.User, pubKey); err != nil {
+	if err := a.OS.CmdSSHCopyID(agentCli, a.SSHUser, pubKey); err != nil {
 		return err
 	}
 
-	if err := a.OS.CmdUserDisable(agentCli, a.User); err != nil {
-		return err
-	}
+	s.Close()
 
-	if err := a.OS.CmdUserMakeAdmin(agentCli, a.User); err != nil {
-		return err
-	}
-
-	// Add the Agent to the DB
-	if err := a.Add(); err != nil {
-		return err
-	}
-
-	if a.MinioKey, err = minio.CreateUser(fmt.Sprintf("drlm-agent-%d", a.ID)); err != nil {
-		return fmt.Errorf("error creating the Agent Minio user: %v", err)
-	}
-
-	if err := a.Update(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Install installs the agent binary, sets up the daemon and config and starts the service
-func Install(host string, f []byte) error {
-	a := &models.Agent{
-		Host: host,
-	}
-
-	if err := a.Load(); err != nil {
-		return fmt.Errorf("error loading the agent from the DB: %v", err)
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("error getting the current user: %v", err)
-	}
-
-	coreCli := &client.Local{}
-	coreOS, err := os.DetectOS(coreCli)
-	if err != nil {
-		return err
-	}
-
-	keysPath, err := coreOS.CmdSSHGetKeysPath(coreCli, u.Username)
-	if err != nil {
-		return err
-	}
-
-	keys := strings.Split(a.HostKeys, "|||")
-	s, err := ssh.NewSessionWithKey(a.Host, a.Port, a.User, keysPath, keys)
+	// Connect to the host through user and key
+	s, err = ssh.NewSessionWithKey(ctx.FS, a.Host, a.SSHPort, a.SSHUser, keysPath, keys)
 	if err != nil {
 		return fmt.Errorf("error opening the ssh session with the agent: %v", err)
 	}
 	defer s.Close()
-	agentCli := &client.SSH{Session: s}
 
-	if err := a.OS.CmdPkgInstallBinary(agentCli, a.User, "drlm-agent", f); err != nil {
+	agentCli.Session = s
+
+	if err := a.OS.CmdPkgInstallBinary(agentCli, a.SSHUser, "drlm-agent", f); err != nil {
 		return fmt.Errorf("error installing DRLM Agent: %v", err)
 	}
 
-	if err := a.OS.CmdPkgWriteConfig(agentCli, a.User, "agent.toml", []byte(fmt.Sprintf(`[core]
+	if err := a.OS.CmdPkgWriteConfig(agentCli, a.SSHUser, "agent.toml", []byte(fmt.Sprintf(`[core]
 secret = "%s"
 
 [minio]
@@ -162,7 +135,7 @@ secret_key = "%s"`, a.Secret, "drlm-agent-"+strconv.Itoa(int(a.ID)), a.MinioKey)
 }
 
 // Sync updates the agent OS information, and all the plugins specific info such as OS, OS version, program versions...
-func Sync(a *models.Agent) error {
+func Sync(ctx *context.Context, a *models.Agent) error {
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("error getting the current user: %v", err)
@@ -179,8 +152,8 @@ func Sync(a *models.Agent) error {
 		return err
 	}
 
-	keys := strings.Split(a.HostKeys, "|||")
-	s, err := ssh.NewSessionWithKey(a.Host, a.Port, a.User, keysPath, keys)
+	keys := strings.Split(a.SSHHostKeys, "|||")
+	s, err := ssh.NewSessionWithKey(ctx.FS, a.Host, a.SSHPort, a.SSHUser, keysPath, keys)
 	if err != nil {
 		return fmt.Errorf("error opening the ssh session with the agent: %v", err)
 	}

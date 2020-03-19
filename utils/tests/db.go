@@ -4,11 +4,12 @@ package tests
 
 import (
 	"database/sql/driver"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/context"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jinzhu/gorm"
@@ -16,18 +17,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	// import the gorm postgres dialect
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
 // GenerateDB generates a new Mock DB
-func GenerateDB(t *testing.T) sqlmock.Sqlmock {
+func GenerateDB(t *testing.T, ctx *context.Context) sqlmock.Sqlmock {
 	require := require.New(t)
 
 	d, mock, err := sqlmock.New()
 	require.NoError(err)
 
-	db.DB, err = gorm.Open("postgres", d)
+	ctx.DB, err = gorm.Open("postgres", d)
 	require.NoError(err)
+
+	ctx.DB.LogMode(false)
 
 	return mock
 }
@@ -70,4 +73,22 @@ func (b DBAnyBucketName) Match(v driver.Value) bool {
 	}
 
 	return strings.HasPrefix(bName, "drlm-")
+}
+
+// DBAnySecret is used to mock a secret
+type DBAnySecret struct{}
+
+// Match is the function responsible for returning whether the mock expression matches or not the expectations
+func (b DBAnySecret) Match(v driver.Value) bool {
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+
+	_, err := hex.DecodeString(s)
+	if err != nil {
+		return false
+	}
+
+	return len(s) == 32
 }

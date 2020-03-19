@@ -14,9 +14,9 @@ func TestSetDefaults(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("should work as expected", func(t *testing.T) {
-		v = viper.New()
+		v := viper.New()
 
-		SetDefaults()
+		SetDefaults(v)
 
 		assert.Equal(50051, v.GetInt("grpc.port"))
 		assert.Equal(true, v.GetBool("grpc.tls"))

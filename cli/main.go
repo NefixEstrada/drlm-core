@@ -3,13 +3,12 @@
 package cli
 
 import (
-	"context"
+	stdContext "context"
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 
-	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/scheduler"
 	"github.com/brainupdaters/drlm-core/transport/grpc"
 
@@ -17,16 +16,12 @@ import (
 )
 
 // Main is the main function of DRLM Core
-func Main() {
-	var wg sync.WaitGroup
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, "wg", &wg)
-
+func Main(ctx *context.Context, cancel stdContext.CancelFunc) {
 	scheduler.Init(ctx)
-	wg.Add(1)
+	ctx.WG.Add(1)
+
 	go grpc.Serve(ctx)
-	wg.Add(1)
+	ctx.WG.Add(1)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -37,8 +32,8 @@ func Main() {
 		log.Info("stopping DRLM Core...")
 
 		cancel()
-		wg.Wait()
+		ctx.WG.Wait()
 
-		db.DB.Close()
+		ctx.DB.Close()
 	}
 }

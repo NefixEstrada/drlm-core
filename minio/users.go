@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/utils/secret"
 
 	"github.com/rs/xid"
@@ -14,13 +14,13 @@ import (
 
 // CreateUser creates a new user to the Minio server
 // TODO: Add S3 compatibility
-func CreateUser(usr string) (key string, err error) {
+func CreateUser(ctx *context.Context, usr string) (key string, err error) {
 	pwd, err := secret.New(usr)
 	if err != nil {
 		return "", fmt.Errorf("error generating the secret key: %v", err)
 	}
 
-	if err := cli.AddUser(usr, pwd); err != nil {
+	if err := ctx.MinioAdminCli.AddUser(usr, pwd); err != nil {
 		return "", fmt.Errorf("error creating the minio user: %v", err)
 	}
 
@@ -29,14 +29,14 @@ func CreateUser(usr string) (key string, err error) {
 
 // MakeBucketForUser creates a new bucket and adds read and write permissions to the user
 // TODO: Add S3 compatibility
-func MakeBucketForUser(usr string) (string, error) {
+func MakeBucketForUser(ctx *context.Context, usr string) (string, error) {
 	bName := fmt.Sprintf("drlm-%s", xid.New())
 
-	if err := Minio.MakeBucket(bName, cfg.Config.Minio.Location); err != nil {
+	if err := ctx.MinioCli.MakeBucket(bName, ctx.Cfg.Minio.Location); err != nil {
 		return "", fmt.Errorf("error creating the storage bucket: %v", err)
 	}
 
-	if err := cli.AddCannedPolicy(bName, strings.Replace(`{
+	if err := ctx.MinioAdminCli.AddCannedPolicy(bName, strings.Replace(`{
 		"Version": "2012-10-17",
 		"Id": "{BUCKET_NAME}",
 		"Statement": [
@@ -79,7 +79,7 @@ func MakeBucketForUser(usr string) (string, error) {
 		return "", fmt.Errorf("error creating the policy: %v", err)
 	}
 
-	if err := cli.SetPolicy(bName, usr, false); err != nil {
+	if err := ctx.MinioAdminCli.SetPolicy(bName, usr, false); err != nil {
 		return "", fmt.Errorf("error applying the policy to the user: %v", err)
 	}
 

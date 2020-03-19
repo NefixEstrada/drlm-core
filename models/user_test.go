@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/brainupdaters/drlm-core/auth/types"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
@@ -19,11 +20,13 @@ import (
 
 type TestUserSuite struct {
 	suite.Suite
+	ctx  *context.Context
 	mock sqlmock.Sqlmock
 }
 
 func (s *TestUserSuite) SetupTest() {
-	s.mock = tests.GenerateDB(s.T())
+	s.ctx = tests.GenerateCtx()
+	s.mock = tests.GenerateDB(s.T(), s.ctx)
 }
 
 func (s *TestUserSuite) AfterTest() {
@@ -66,7 +69,7 @@ func (s *TestUserSuite) TestList() {
 			},
 		}
 
-		users, err := models.UserList()
+		users, err := models.UserList(s.ctx)
 
 		s.Nil(err)
 		s.Equal(expectedUsers, users)
@@ -75,7 +78,7 @@ func (s *TestUserSuite) TestList() {
 	s.Run("should return an error if there's an error listing the users in the DB", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT created_at, updated_at, username, auth_type FROM "users"  WHERE "users"."deleted_at" IS NULL`)).WillReturnError(errors.New("testing error"))
 
-		users, err := models.UserList()
+		users, err := models.UserList(s.ctx)
 
 		s.EqualError(err, "error getting the list of users: testing error")
 		s.Equal([]*models.User{}, users)
@@ -83,7 +86,7 @@ func (s *TestUserSuite) TestList() {
 }
 
 func (s *TestUserSuite) TestAdd() {
-	tests.GenerateCfg(s.T())
+	tests.GenerateCfg(s.T(), s.ctx)
 
 	s.Run("should add the user to the DB", func() {
 		s.mock.ExpectBegin()
@@ -98,19 +101,20 @@ func (s *TestUserSuite) TestAdd() {
 			AuthType: types.Local,
 		}
 
-		s.Nil(u.Add())
+		s.Nil(u.Add(s.ctx))
+
+		_, err := bcrypt.Cost([]byte(u.Password))
+		s.Nil(err)
 	})
 
 	s.Run("should return an error if the password is too weak", func() {
-		s.mock.ExpectBegin()
-
 		u := models.User{
 			Username: "nefix",
 			Password: "",
 			AuthType: types.Local,
 		}
 
-		s.EqualError(u.Add(), "the password requires, at least, a length of 8 characters")
+		s.EqualError(u.Add(s.ctx), "the password requires, at least, a length of 8 characters")
 	})
 
 	s.Run("should return an error if there's an error adding the user to the DB", func() {
@@ -123,12 +127,11 @@ func (s *TestUserSuite) TestAdd() {
 			AuthType: types.Local,
 		}
 
-		s.EqualError(u.Add(), "error adding the user to the DB: testing error")
+		s.EqualError(u.Add(s.ctx), "error adding the user to the DB: testing error")
 	})
 }
 
 func (s *TestUserSuite) TestLoad() {
-
 	s.Run("should load the user from the DB correctly", func() {
 		s.mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."deleted_at" IS NULL AND ((username = $1)) ORDER BY "users"."id" ASC LIMIT 1`)).WithArgs("nefix").WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "auth_type"}).
 			AddRow(1, "nefix", "f0cKt3Rf$", types.Local),
@@ -147,7 +150,7 @@ func (s *TestUserSuite) TestLoad() {
 			Username: "nefix",
 		}
 
-		s.Nil(u.Load())
+		s.Nil(u.Load(s.ctx))
 		s.Equal(expectedUser, u)
 	})
 
@@ -158,7 +161,7 @@ func (s *TestUserSuite) TestLoad() {
 			Username: "nefix",
 		}
 
-		s.True(gorm.IsRecordNotFoundError(u.Load()))
+		s.True(gorm.IsRecordNotFoundError(u.Load(s.ctx)))
 	})
 
 	s.Run("should return an error if there's an error loading the user from the DB", func() {
@@ -168,7 +171,7 @@ func (s *TestUserSuite) TestLoad() {
 			Username: "nefix",
 		}
 
-		s.EqualError(u.Load(), "error loading the user from the DB: testing error")
+		s.EqualError(u.Load(s.ctx), "error loading the user from the DB: testing error")
 	})
 }
 
@@ -185,7 +188,7 @@ func (s *TestUserSuite) TestDelete() {
 			Username: "nefix",
 		}
 
-		s.Nil(u.Delete())
+		s.Nil(u.Delete(s.ctx))
 	})
 
 	s.Run("should return an error if there's an error loading the user", func() {
@@ -195,30 +198,6 @@ func (s *TestUserSuite) TestDelete() {
 			Username: "nefix",
 		}
 
-		s.EqualError(u.Delete(), "error loading the user from the DB: testing error")
-	})
-}
-
-func (s *TestUserSuite) TestBeforeSave() {
-	tests.GenerateCfg(s.T())
-
-	s.Run("should encrypt the password correctly", func() {
-		u := models.User{
-			Username: "nefix",
-			Password: "f0cKt3Rf$",
-		}
-
-		s.Nil(u.BeforeSave())
-		_, err := bcrypt.Cost([]byte(u.Password))
-		s.Nil(err)
-	})
-
-	s.Run("should return an error if the password is too weak", func() {
-		u := models.User{
-			Username: "nefix",
-			Password: "",
-		}
-
-		s.EqualError(u.BeforeSave(), "the password requires, at least, a length of 8 characters")
+		s.EqualError(u.Delete(s.ctx), "error loading the user from the DB: testing error")
 	})
 }

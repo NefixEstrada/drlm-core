@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 
 	"github.com/dgrijalva/jwt-go"
@@ -25,8 +25,8 @@ type TokenClaims struct {
 }
 
 // NewToken issues a new token
-func NewToken(usr string) (Token, time.Time, error) {
-	expiresAt := time.Now().Add(cfg.Config.Security.TokensLifespan)
+func NewToken(ctx *context.Context, usr string) (Token, time.Time, error) {
+	expiresAt := time.Now().Add(ctx.Cfg.Security.TokensLifespan)
 
 	claims := &TokenClaims{
 		Usr:         usr,
@@ -36,7 +36,7 @@ func NewToken(usr string) (Token, time.Time, error) {
 		},
 	}
 	tkn := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	signedTkn, err := tkn.SignedString([]byte(cfg.Config.Security.TokensSecret))
+	signedTkn, err := tkn.SignedString([]byte(ctx.Cfg.Security.TokensSecret))
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("error signing the token: %v", err)
 	}
@@ -45,11 +45,11 @@ func NewToken(usr string) (Token, time.Time, error) {
 }
 
 // Validate checks whether a token is valid or not
-func (t *Token) Validate() bool {
+func (t *Token) Validate(ctx *context.Context) bool {
 	claims := &TokenClaims{}
 
 	tkn, err := jwt.ParseWithClaims(t.String(), claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(cfg.Config.Security.TokensSecret), nil
+		return []byte(ctx.Cfg.Security.TokensSecret), nil
 	})
 	if err != nil || !tkn.Valid {
 		return false
@@ -59,8 +59,8 @@ func (t *Token) Validate() bool {
 }
 
 // ValidateAgent checks whether an agent token (secret) is valid or not
-func (t *Token) ValidateAgent() (string, bool) {
-	agents, err := models.AgentList()
+func (t *Token) ValidateAgent(ctx *context.Context) (string, bool) {
+	agents, err := models.AgentList(ctx)
 	if err != nil {
 		return "", false
 	}
@@ -75,17 +75,17 @@ func (t *Token) ValidateAgent() (string, bool) {
 }
 
 // Renew renews the validity of the token
-func (t *Token) Renew() (time.Time, error) {
+func (t *Token) Renew(ctx *context.Context) (time.Time, error) {
 	claims := &TokenClaims{}
 
 	tkn, err := jwt.ParseWithClaims(t.String(), claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(cfg.Config.Security.TokensSecret), nil
+		return []byte(ctx.Cfg.Security.TokensSecret), nil
 	})
 	if err != nil || !tkn.Valid {
 		if err != nil {
 			// If the token has expired, but the user hasn't been modified since before the token was issued (the password hasn't changed), the token can be renewed
 			if strings.HasPrefix(err.Error(), "token is expired by ") {
-				if time.Since(claims.FirstIssued) > cfg.Config.Security.LoginLifespan {
+				if time.Since(claims.FirstIssued) > ctx.Cfg.Security.LoginLifespan {
 					return time.Time{}, fmt.Errorf("error renewing the token: login lifespan exceeded, login again")
 				}
 
@@ -93,12 +93,12 @@ func (t *Token) Renew() (time.Time, error) {
 					Username: claims.Usr,
 				}
 
-				if err = u.Load(); err != nil {
+				if err = u.Load(ctx); err != nil {
 					return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 				}
 
 				if u.UpdatedAt.Before(time.Unix(claims.IssuedAt, 0)) {
-					signedTkn, expiresAt, err := renew(claims)
+					signedTkn, expiresAt, err := renew(ctx, claims)
 					if err != nil {
 						return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 					}
@@ -112,7 +112,7 @@ func (t *Token) Renew() (time.Time, error) {
 		return time.Time{}, errors.New("error renewing the token: the token is invalid or can't be renewed")
 	}
 
-	signedTkn, expiresAt, err := renew(claims)
+	signedTkn, expiresAt, err := renew(ctx, claims)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("error renewing the token: %v", err)
 	}
@@ -121,12 +121,12 @@ func (t *Token) Renew() (time.Time, error) {
 	return expiresAt, nil
 }
 
-func renew(claims *TokenClaims) (string, time.Time, error) {
-	expiresAt := time.Now().Add(cfg.Config.Security.TokensLifespan)
+func renew(ctx *context.Context, claims *TokenClaims) (string, time.Time, error) {
+	expiresAt := time.Now().Add(ctx.Cfg.Security.TokensLifespan)
 	claims.ExpiresAt = expiresAt.Unix()
 
 	tkn := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	signedTkn, err := tkn.SignedString([]byte(cfg.Config.Security.TokensSecret))
+	signedTkn, err := tkn.SignedString([]byte(ctx.Cfg.Security.TokensSecret))
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("error singing the token: %v", err)
 	}

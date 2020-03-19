@@ -3,78 +3,144 @@
 package migrations
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-	"syscall"
+	"sync"
+	"time"
 
-	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/db"
-	"github.com/brainupdaters/drlm-core/models"
+	"github.com/brainupdaters/drlm-core/context"
 
 	"github.com/jinzhu/gorm"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh/terminal"
+	"gopkg.in/gormigrate.v1"
 )
 
 // Migrate runs all the DB migrations
-func Migrate() {
-	// 2019/07/16 10:02 - Add the User model
-	if err := db.DB.AutoMigrate(&models.User{}).Error; err != nil {
-		log.Fatalf("error migrating the User model: %v", err)
+func Migrate(ctx *context.Context) {
+	m := gormigrate.New(ctx.DB, gormigrate.DefaultOptions, []*gormigrate.Migration{
+		{
+			ID: "201907161002",
+			Migrate: func(tx *gorm.DB) error {
+				type Type int
+
+				type User struct {
+					gorm.Model
+					Username string `gorm:"unique;not null"`
+					Password string `gorm:"not null"`
+					AuthType Type   `gorm:"not null"`
+				}
+
+				return tx.AutoMigrate(&User{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("users").Error
+			},
+		},
+		{
+			ID: "201910161152",
+			Migrate: func(tx *gorm.DB) error {
+				type Arch int
+				type OS int
+
+				type Agent struct {
+					gorm.Model
+					Host     string `gorm:"unique;not null"`
+					Accepted bool   `gorm:"not null"`
+
+					MinioKey string `gorm:"not null"`
+					Secret   string `gorm:"unique;not null"` // The secret is used for authentication
+
+					SSHPort     int `gorm:"not null"`
+					SSHUser     string
+					SSHHostKeys string `gorm:"size:9999"` // The different keys are splitted with `|||` between each one
+
+					Version       string
+					Arch          Arch
+					OS            OS
+					OSVersion     string
+					Distro        string
+					DistroVersion string
+				}
+
+				return tx.AutoMigrate(&Agent{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("agents").Error
+			},
+		},
+		{
+			ID: "201910161153",
+			Migrate: func(tx *gorm.DB) error {
+				type JobStatus int
+
+				type Job struct {
+					gorm.Model
+
+					PluginID   uint      `gorm:"not null"`
+					AgentHost  string    `gorm:"not null"`
+					Status     JobStatus `gorm:"not null"`
+					Time       time.Time
+					Config     string `gorm:"not null"`
+					BucketName string `gorm:"not null;unique"`
+					Info       string
+
+					Mux            sync.Mutex `gorm:"-"`
+					ReconnAttempts int
+				}
+
+				return tx.AutoMigrate(&Job{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("jobs").Error
+			},
+		},
+		{
+			ID: "202001271226",
+			Migrate: func(tx *gorm.DB) error {
+				type Arch int
+				type OS int
+
+				type Agent struct {
+					gorm.Model
+					Host     string `gorm:"unique;not null"`
+					Accepted bool   `gorm:"not null"`
+
+					MinioKey string `gorm:"not null"`
+					Secret   string `gorm:"unique;not null"` // The secret is used for authentication
+
+					SSHPort     int `gorm:"not null"`
+					SSHUser     string
+					SSHHostKeys string `gorm:"size:9999"` // The different keys are splitted with `|||` between each one
+
+					Version       string
+					Arch          Arch
+					OS            OS
+					OSVersion     string
+					Distro        string
+					DistroVersion string
+				}
+
+				type Plugin struct {
+					gorm.Model
+					Repo      string `gorm:"not null"`
+					Name      string `gorm:"not null"`
+					Version   string `gorm:"not null"`
+					AgentHost string `gorm:"not null"`
+					Agent     *Agent `gorm:"foreignkey:Host;association_foreignkey:AgentHost"`
+					// TODO: This should be stored in the DB
+					Arch []Arch `gorm:"-"`
+					OS   []OS   `gorm:"-"`
+				}
+
+				return tx.AutoMigrate(&Plugin{}).Error
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return tx.DropTable("plugins").Error
+			},
+		},
+	})
+
+	if err := m.Migrate(); err != nil {
+		log.Fatalf("error running the DB migrations: %v", err)
 	}
-	// 2019/10/16 11:52 - Add the Agent and Job models
-	if err := db.DB.AutoMigrate(&models.Agent{}).Error; err != nil {
-		log.Fatalf("error migrating the Agent model: %v", err)
-	}
 
-	if err := db.DB.AutoMigrate(&models.Job{}).Error; err != nil {
-		log.Fatalf("error migrating the Agent model: %v", err)
-	}
-
-	// 2020/01/27 12:26 - Add the plugin model
-	if err := db.DB.AutoMigrate(&models.Plugin{}).Error; err != nil {
-		log.Fatalf("error migrating the Plugin model: %v", err)
-	}
-
-	// Create the admin user if it doesn't exist
-	u := models.User{Username: "admin"}
-	if err := u.Load(); err != nil {
-		if err != gorm.ErrRecordNotFound {
-			log.Fatalf("error creating the admin user: %v", err)
-		}
-
-		fmt.Print("Please, set the admin password: ")
-		bPwd, err := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		if err != nil {
-			log.Fatalf("error creating the admin user: error reading the password: %v", err)
-		}
-
-		fmt.Print("Please, repeat admin password: ")
-		bPwd2, err := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		if err != nil {
-			log.Fatalf("error creating the admin user: error reading the password: %v", err)
-		}
-
-		if !bytes.Equal(bPwd, bPwd2) {
-			log.Fatalf("error creating the admin user: passwords don't match")
-		}
-
-		pwd := strings.TrimSpace(string(bPwd))
-
-		u = models.User{
-			Username: "admin",
-			Password: pwd,
-			AuthType: types.Local,
-		}
-
-		if err := u.Add(); err != nil {
-			if models.IsErrUsrPwdStrength(err) {
-				log.Fatalf(err.Error())
-			}
-		}
-	}
-
+	log.Info("successfully run the DB migrations")
 }

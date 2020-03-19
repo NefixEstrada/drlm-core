@@ -3,42 +3,36 @@
 package minio
 
 import (
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 
 	cmnMinio "github.com/brainupdaters/drlm-common/pkg/minio"
-	sdk "github.com/minio/minio-go/v6"
-	"github.com/minio/minio/pkg/madmin"
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	// Minio is the connection with the Minio server
-	Minio *sdk.Client
-	cli   *madmin.AdminClient
-)
-
 // Init creates the Minio connection
-func Init() {
+func Init(ctx *context.Context) {
 	var err error
-	Minio, err = cmnMinio.NewSDK(
-		cfg.Config.Minio.Host,
-		cfg.Config.Minio.Port,
-		cfg.Config.Minio.AccessKey,
-		cfg.Config.Minio.SecretKey,
-		cfg.Config.Minio.SSL,
-		cfg.Config.Minio.CertPath,
+	ctx.MinioCli, err = cmnMinio.NewSDK(
+		ctx.FS,
+		ctx.Cfg.Minio.Host,
+		ctx.Cfg.Minio.Port,
+		ctx.Cfg.Minio.AccessKey,
+		ctx.Cfg.Minio.SecretKey,
+		ctx.Cfg.Minio.SSL,
+		ctx.Cfg.Minio.CertPath,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	cli, err = cmnMinio.NewAdminClient(
-		cfg.Config.Minio.Host,
-		cfg.Config.Minio.Port,
-		cfg.Config.Minio.AccessKey,
-		cfg.Config.Minio.SecretKey,
-		cfg.Config.Minio.SSL,
-		cfg.Config.Minio.CertPath,
+	ctx.MinioAdminCli, err = cmnMinio.NewAdminClient(
+		ctx.FS,
+		ctx.Cfg.Minio.Host,
+		ctx.Cfg.Minio.Port,
+		ctx.Cfg.Minio.AccessKey,
+		ctx.Cfg.Minio.SecretKey,
+		ctx.Cfg.Minio.SSL,
+		ctx.Cfg.Minio.CertPath,
 	)
 	if err != nil {
 		log.Fatal(err)

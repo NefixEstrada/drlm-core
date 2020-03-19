@@ -5,7 +5,7 @@ package db_test
 import (
 	"testing"
 
-	"github.com/brainupdaters/drlm-core/cfg"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/utils/tests"
 
@@ -15,6 +15,12 @@ import (
 
 type TestDBSuite struct {
 	test.Test
+
+	ctx *context.Context
+}
+
+func (s *TestDBSuite) SetupTest() {
+	s.ctx = tests.GenerateCtx()
 }
 
 func TestDB(t *testing.T) {
@@ -22,10 +28,10 @@ func TestDB(t *testing.T) {
 }
 
 func (s *TestDBSuite) TestInit() {
-	tests.GenerateCfg(s.T())
+	tests.GenerateCfg(s.T(), s.ctx)
 
-	cfg.Config.DB.Host = "localhost"
-	cfg.Config.DB.Port = s.FreePort()
+	s.ctx.Cfg.DB.Host = "localhost"
+	s.ctx.Cfg.DB.Port = s.FreePort()
 
-	s.Exits(db.Init)
+	s.Exits(func() { db.Init(s.ctx) })
 }

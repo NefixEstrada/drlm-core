@@ -9,8 +9,7 @@ import (
 	"unicode"
 
 	"github.com/brainupdaters/drlm-core/auth/types"
-	"github.com/brainupdaters/drlm-core/cfg"
-	"github.com/brainupdaters/drlm-core/db"
+	"github.com/brainupdaters/drlm-core/context"
 
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
@@ -25,10 +24,10 @@ type User struct {
 }
 
 // UserList returns a list with all the users
-func UserList() ([]*User, error) {
+func UserList(ctx *context.Context) ([]*User, error) {
 	users := []*User{}
 
-	if err := db.DB.Select("created_at, updated_at, username, auth_type").Find(&users).Error; err != nil {
+	if err := ctx.DB.Select("created_at, updated_at, username, auth_type").Find(&users).Error; err != nil {
 		return []*User{}, fmt.Errorf("error getting the list of users: %v", err)
 	}
 
@@ -36,12 +35,19 @@ func UserList() ([]*User, error) {
 }
 
 // Add creates a new user in the DB
-func (u *User) Add() error {
-	if err := db.DB.Create(u).Error; err != nil {
-		if IsErrUsrPwdStrength(err) {
-			return err
-		}
+func (u *User) Add(ctx *context.Context) error {
+	if err := u.checkPwdStrength(); err != nil {
+		return err
+	}
 
+	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), ctx.Cfg.Security.BcryptCost)
+	if err != nil {
+		return fmt.Errorf("error encrypting the user password: %v", err)
+	}
+
+	u.Password = string(b)
+
+	if err := ctx.DB.Create(u).Error; err != nil {
 		return fmt.Errorf("error adding the user to the DB: %v", err)
 	}
 
@@ -49,8 +55,8 @@ func (u *User) Add() error {
 }
 
 // Load loads the user from the DB using the username
-func (u *User) Load() error {
-	if err := db.DB.Where("username = ?", u.Username).First(u).Error; err != nil {
+func (u *User) Load(ctx *context.Context) error {
+	if err := ctx.DB.Where("username = ?", u.Username).First(u).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return err
 		}
@@ -62,27 +68,12 @@ func (u *User) Load() error {
 }
 
 // Delete removes an user from the DB using the username
-func (u *User) Delete() error {
-	if err := u.Load(); err != nil {
+func (u *User) Delete(ctx *context.Context) error {
+	if err := u.Load(ctx); err != nil {
 		return err
 	}
 
-	return db.DB.Delete(u).Error
-}
-
-// BeforeSave is a GORM hook that gets executed before saving the user. It's used to encrypt the password
-func (u *User) BeforeSave() error {
-	if err := u.checkPwdStrength(); err != nil {
-		return err
-	}
-
-	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), cfg.Config.Security.BcryptCost)
-	if err != nil {
-		return fmt.Errorf("error encrypting the user password: %v", err)
-	}
-
-	u.Password = string(b)
-	return nil
+	return ctx.DB.Delete(u).Error
 }
 
 // errUsrPwdLength indicates that the password is too short

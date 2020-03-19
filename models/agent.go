@@ -5,24 +5,26 @@ package models
 import (
 	"fmt"
 
-	"github.com/brainupdaters/drlm-core/db"
-	"github.com/rs/xid"
+	"github.com/brainupdaters/drlm-core/context"
+	"github.com/brainupdaters/drlm-core/utils/secret"
 
 	"github.com/brainupdaters/drlm-common/pkg/os"
 	"github.com/jinzhu/gorm"
+	"github.com/rs/xid"
 )
 
 // Agent (s) are the clients of DRLM Core that are installed in the servers
 type Agent struct {
 	gorm.Model
-	Host           string `gorm:"unique;not null"`
-	Port           int    `gorm:"not null"`
-	User           string `gorm:"not null"`
-	PublicKeyPath  string `gorm:"not null"`
-	PrivateKeyPath string `gorm:"not null"`
-	HostKeys       string `gorm:"size:9999;not null"` // The different keys are splitted with `|||` between each one
-	MinioKey       string `gorm:"not null"`
-	Secret         string `gorm:"not null"` // The secret is used for authentication
+	Host     string `gorm:"unique;not null"`
+	Accepted bool   `gorm:"not null"`
+
+	MinioKey string `gorm:"not null"`
+	Secret   string `gorm:"unique;not null"` // The secret is used for authentication
+
+	SSHPort     int `gorm:"not null"`
+	SSHUser     string
+	SSHHostKeys string `gorm:"size:9999"` // The different keys are splitted with `|||` between each one
 
 	Version       string
 	Arch          os.Arch
@@ -36,10 +38,10 @@ type Agent struct {
 }
 
 // AgentList returns a list with all the agents
-func AgentList() ([]*Agent, error) {
+func AgentList(ctx *context.Context) ([]*Agent, error) {
 	agents := []*Agent{}
 
-	if err := db.DB.Select("id, created_at, updated_at, host, port, user, public_key_path, private_key_path, secret, version, arch, os, os_version, distro, distro_version").Find(&agents).Error; err != nil {
+	if err := ctx.DB.Select("id, created_at, updated_at, host, accepted, minio_key, secret, ssh_port, ssh_user, ssh_host_keys, version, arch, os, os_version, distro, distro_version").Where(&Agent{Accepted: true}).Find(&agents).Error; err != nil {
 		return []*Agent{}, fmt.Errorf("error getting the list of agents: %v", err)
 	}
 
@@ -47,8 +49,8 @@ func AgentList() ([]*Agent, error) {
 }
 
 // Add creates a new agent in the DB
-func (a *Agent) Add() error {
-	if err := db.DB.Create(a).Error; err != nil {
+func (a *Agent) Add(ctx *context.Context) error {
+	if err := ctx.DB.Create(a).Error; err != nil {
 		return fmt.Errorf("error adding the agent to the DB: %v", err)
 	}
 
@@ -58,15 +60,19 @@ func (a *Agent) Add() error {
 // BeforeCreate is a hook that gets executed before creating an agent
 func (a *Agent) BeforeCreate() error {
 	if a.Secret == "" {
-		a.Secret = xid.New().String()
+		var err error
+		a.Secret, err = secret.New(xid.New().String())
+		if err != nil {
+			return fmt.Errorf("generate secret: %v", err)
+		}
 	}
 
 	return nil
 }
 
 // Load loads the agent from the DB using the host
-func (a *Agent) Load() error {
-	if err := db.DB.Where("host = ?", a.Host).First(a).Error; err != nil {
+func (a *Agent) Load(ctx *context.Context) error {
+	if err := ctx.DB.Where("host = ?", a.Host).First(a).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return err
 		}
@@ -78,8 +84,8 @@ func (a *Agent) Load() error {
 }
 
 // Update updates the agent in the DB
-func (a *Agent) Update() error {
-	if err := db.DB.Save(a).Error; err != nil {
+func (a *Agent) Update(ctx *context.Context) error {
+	if err := ctx.DB.Save(a).Error; err != nil {
 		return fmt.Errorf("error updating the agent: %v", err)
 	}
 
@@ -87,22 +93,18 @@ func (a *Agent) Update() error {
 }
 
 // Delete removes an agent from the DB
-func (a *Agent) Delete() error {
-	if err := a.Load(); err != nil {
+func (a *Agent) Delete(ctx *context.Context) error {
+	if err := a.Load(ctx); err != nil {
 		return err
 	}
 
-	return db.DB.Delete(a).Error
+	return ctx.DB.Delete(a).Error
 }
 
 // LoadJobs loads all the jobs of an agent
-func (a *Agent) LoadJobs() error {
+func (a *Agent) LoadJobs(ctx *context.Context) error {
 	var jobs []*Job
-	if err := db.DB.Where("agent_host = ?", a.Host).Find(&jobs).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return err
-		}
-
+	if err := ctx.DB.Where("agent_host = ?", a.Host).Find(&jobs).Error; err != nil {
 		return fmt.Errorf("error getting the jobs list: %v", err)
 	}
 
@@ -112,13 +114,9 @@ func (a *Agent) LoadJobs() error {
 }
 
 // LoadPlugins loads all the jobs of an agent
-func (a *Agent) LoadPlugins() error {
+func (a *Agent) LoadPlugins(ctx *context.Context) error {
 	var plugins []*Plugin
-	if err := db.DB.Where("agent_host = ?", a.Host).Find(&plugins).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return err
-		}
-
+	if err := ctx.DB.Where("agent_host = ?", a.Host).Find(&plugins).Error; err != nil {
 		return fmt.Errorf("error getting the plugins list: %v", err)
 	}
 

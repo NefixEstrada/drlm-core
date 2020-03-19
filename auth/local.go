@@ -7,15 +7,16 @@ import (
 	"time"
 
 	"github.com/brainupdaters/drlm-core/auth/types"
+	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // LoginLocal authenticates the user against the DB
-func LoginLocal(usr, pwd string) (Token, time.Time, error) {
+func LoginLocal(ctx *context.Context, usr, pwd string) (Token, time.Time, error) {
 	u := models.User{Username: usr}
-	if err := u.Load(); err != nil {
+	if err := u.Load(ctx); err != nil {
 		return "", time.Time{}, err
 	}
 
@@ -32,7 +33,7 @@ func LoginLocal(usr, pwd string) (Token, time.Time, error) {
 		return "", time.Time{}, fmt.Errorf("password error: %v", err)
 	}
 
-	tkn, expiresAt, err := NewToken(usr)
+	tkn, expiresAt, err := NewToken(ctx, usr)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("error generating the login token: %v", err)
 	}
