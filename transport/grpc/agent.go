@@ -34,6 +34,11 @@ func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*
 	return &drlm.AgentAddResponse{}, nil
 }
 
+// AgentAccept accepts a request to join DRLM that has made an Agent
+func (c *CoreServer) AgentAccept(ctx context.Context, req *drlm.AgentAcceptRequest) (*drlm.AgentAcceptResponse, error) {
+	return &drlm.AgentAcceptResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+}
+
 // AgentInstall installs the agent binary to the agent machine
 func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 	var host string
@@ -96,8 +101,8 @@ func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) 
 	for _, a := range agents {
 		rsp.Agents = append(rsp.Agents, &drlm.AgentListResponse_Agent{
 			Host:          a.Host,
-			Port:          int32(a.SSHPort),
-			User:          a.SSHUser,
+			SshPort:       int32(a.SSHPort),
+			SshUser:       a.SSHUser,
 			Version:       a.Version,
 			Arch:          drlm.Arch(a.Arch),
 			Os:            drlm.OS(a.OS),
@@ -108,6 +113,11 @@ func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) 
 	}
 
 	return rsp, nil
+}
+
+// AgentRequestList returns a list of all the agents that have requested to join DRLM
+func (c *CoreServer) AgentRequestList(ctx context.Context, req *drlm.AgentRequestListRequest) (*drlm.AgentRequestListResponse, error) {
+	return &drlm.AgentRequestListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
 }
 
 // AgentGet returns a specific agent by host
@@ -126,8 +136,8 @@ func (c *CoreServer) AgentGet(ctx context.Context, req *drlm.AgentGetRequest) (*
 
 	return &drlm.AgentGetResponse{
 		Host:          a.Host,
-		Port:          int32(a.SSHPort),
-		User:          a.SSHUser,
+		SshPort:       int32(a.SSHPort),
+		SshUser:       a.SSHUser,
 		Version:       a.Version,
 		Arch:          drlm.Arch(a.Arch),
 		Os:            drlm.OS(a.OS),
