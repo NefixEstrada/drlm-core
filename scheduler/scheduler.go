@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/brainupdaters/drlm-core/agent"
 	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 
@@ -78,7 +79,7 @@ func worker(ctx *context.Context, queue chan *models.Job) {
 	for {
 		select {
 		case j := <-queue:
-			stream, ok := AgentConnections.Get(j.AgentHost)
+			stream, ok := agent.Connections.Get(j.AgentHost)
 			if !ok {
 				handleJobError(j, errAgentUnavailable)
 

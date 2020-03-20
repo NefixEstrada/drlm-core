@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-package scheduler
+package agent
 
 import (
 	"sync"
@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	// AgentConnections are all the active agent connections
-	AgentConnections = connPool{v: map[string]drlm.DRLM_AgentConnectionServer{}}
-	// PendingAgentConnections are all the active connections from agents that havent been accepted yet
-	PendingAgentConnections = connPool{v: map[string]drlm.DRLM_AgentConnectionServer{}}
+	// Connections are all the active agent connections
+	Connections = connPool{v: map[string]drlm.DRLM_AgentConnectionServer{}}
+	// PendingConnections are all the active connections from agents that havent been accepted yet
+	PendingConnections = connPool{v: map[string]drlm.DRLM_AgentConnectionServer{}}
 )
 
 type connPool struct {

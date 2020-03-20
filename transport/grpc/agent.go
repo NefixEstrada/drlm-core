@@ -11,7 +11,6 @@ import (
 	"github.com/brainupdaters/drlm-core/auth"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/plugin"
-	"github.com/brainupdaters/drlm-core/scheduler"
 
 	"github.com/brainupdaters/drlm-common/pkg/os"
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
@@ -255,8 +254,8 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 
 		if err != nil {
 			if err == io.EOF {
-				if _, ok := scheduler.AgentConnections.Get(host); ok {
-					scheduler.AgentConnections.Delete(host)
+				if _, ok := agent.Connections.Get(host); ok {
+					agent.Connections.Delete(host)
 				}
 
 				return nil
@@ -266,7 +265,7 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 		if req != nil {
 			switch req.MessageType {
 			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOIN_REQUEST:
-				scheduler.PendingAgentConnections.Add(host, stream)
+				agent.PendingConnections.Add(host, stream)
 				agent.AddRequest(c.ctx, &models.Agent{
 					Host: host,
 					Arch: os.Arch(req.JoinRequest.Arch),
@@ -275,7 +274,7 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 
 			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_CONN_ESTABLISH:
 				log.Infof("agent '%s' has established a connection", host)
-				scheduler.AgentConnections.Add(host, stream)
+				agent.Connections.Add(host, stream)
 
 			case drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOB_UPDATE:
 				j := &models.Job{

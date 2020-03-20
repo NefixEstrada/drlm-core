@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brainupdaters/drlm-core/agent"
 	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
 	"github.com/brainupdaters/drlm-core/utils/tests"
@@ -132,8 +133,8 @@ func (s *TestSchedulerInternalSuite) TestWorker() {
 			},
 		}).Return(nil)
 
-		AgentConnections.Add("127.0.0.1", agentConnMock)
-		defer AgentConnections.Delete("127.0.0.1")
+		agent.Connections.Add("127.0.0.1", agentConnMock)
+		defer agent.Connections.Delete("127.0.0.1")
 
 		queue := make(chan *models.Job)
 
@@ -206,8 +207,8 @@ func (s *TestSchedulerInternalSuite) TestWorker() {
 			},
 		}).Return(status.Error(codes.Unavailable, "you can't do anything, sorry :("))
 
-		AgentConnections.Add("127.0.0.1", agentConnMock)
-		defer AgentConnections.Delete("127.0.0.1")
+		agent.Connections.Add("127.0.0.1", agentConnMock)
+		defer agent.Connections.Delete("127.0.0.1")
 
 		queue := make(chan *models.Job)
 
@@ -256,8 +257,8 @@ func (s *TestSchedulerInternalSuite) TestWorker() {
 			},
 		}).Return(status.Error(codes.Unknown, "testing error"))
 
-		AgentConnections.Add("127.0.0.1", agentConnMock)
-		defer AgentConnections.Delete("127.0.0.1")
+		agent.Connections.Add("127.0.0.1", agentConnMock)
+		defer agent.Connections.Delete("127.0.0.1")
 
 		queue := make(chan *models.Job)
 
