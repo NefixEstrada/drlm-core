@@ -36,13 +36,13 @@ func (s *TestPluginSuite) TestInstall() {
 		p := &models.Plugin{Arch: []os.Arch{os.ArchAmd64}}
 		a := &models.Agent{Arch: os.Arch(999)}
 
-		plugin.Install(s.ctx, p, a, []byte("plugin"))
+		plugin.Install(s.ctx, a, p, []byte("plugin"))
 	})
 
 	s.Run("should fail if the OS is unsupported", func() {
 		p := &models.Plugin{OS: []os.OS{os.Linux}}
 		a := &models.Agent{OS: os.OS(999)}
 
-		plugin.Install(s.ctx, p, a, []byte("plugin"))
+		plugin.Install(s.ctx, a, p, []byte("plugin"))
 	})
 }

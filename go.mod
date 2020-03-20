@@ -2,7 +2,7 @@ module github.com/brainupdaters/drlm-core
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.3.3
-	github.com/brainupdaters/drlm-common v0.0.0-20200320100701-afc36c2fdf73
+	github.com/brainupdaters/drlm-common v0.0.0-20200320105234-0b5dc7c19325
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-sql-driver/mysql v1.5.0 // indirect

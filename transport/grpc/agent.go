@@ -44,7 +44,7 @@ func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 	var sshPort int
 	var sshUser string
 	var sshPwd string
-	var f []byte
+	var b []byte
 
 	for {
 		req, err := stream.Recv()
@@ -64,7 +64,7 @@ func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 					return status.Errorf(codes.Unknown, "error loading the agent from the DB: %v", err)
 				}
 
-				if err := agent.Install(c.ctx, a, sshPwd, f); err != nil {
+				if err := agent.Install(c.ctx, a, sshPwd, b); err != nil {
 					return status.Error(codes.Unknown, err.Error())
 				}
 
@@ -80,7 +80,7 @@ func (c *CoreServer) AgentInstall(stream drlm.DRLM_AgentInstallServer) error {
 		sshPort = int(req.SshPort)
 		sshUser = req.SshUser
 		sshPwd = req.SshPassword
-		f = append(f, req.Bin...)
+		b = append(b, req.Bin...)
 	}
 }
 
@@ -155,7 +155,7 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 		version string
 		arch []os.Arch
 		pOS  []os.OS
-		f    []byte
+		b    []byte
 	)
 
 	for {
@@ -174,6 +174,10 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 					return status.Errorf(codes.Unknown, "error adding the plugin: %v", err)
 				}
 
+				if _, ok := agent.Connections.Get(a.Host); !ok {
+					return status.Error(codes.Unavailable, "error adding the plugin: the agent is unavailable")
+				}
+
 				p := &models.Plugin{
 					AgentHost: a.Host,
 					Repo:      repo,
@@ -187,7 +191,7 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 					return status.Errorf(codes.Unknown, "error adding the plugin: %v", err)
 				}
 
-				if err := plugin.Install(c.ctx, p, a, f); err != nil {
+				if err := plugin.Install(c.ctx, a, p, b); err != nil {
 					return status.Errorf(codes.Unknown, "error installing the plugin: %v", err)
 				}
 
@@ -207,7 +211,7 @@ func (c *CoreServer) AgentPluginAdd(stream drlm.DRLM_AgentPluginAddServer) error
 		for _, o := range req.Os {
 			pOS = append(pOS, os.OS(o))
 		}
-		f = append(f, req.Bin...)
+		b = append(b, req.Bin...)
 	}
 }
 

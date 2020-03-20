@@ -3,20 +3,18 @@
 package plugin
 
 import (
+	"bytes"
 	"fmt"
-	"os/user"
-	"strings"
 
+	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
+	"github.com/brainupdaters/drlm-core/agent"
 	"github.com/brainupdaters/drlm-core/context"
 	"github.com/brainupdaters/drlm-core/models"
-
-	"github.com/brainupdaters/drlm-common/pkg/os"
-	"github.com/brainupdaters/drlm-common/pkg/os/client"
-	"github.com/brainupdaters/drlm-common/pkg/ssh"
+	"github.com/minio/minio-go/v6"
 )
 
 // Install installs a plugin on a Agent
-func Install(ctx *context.Context, p *models.Plugin, a *models.Agent, f []byte) error {
+func Install(ctx *context.Context, a *models.Agent, p *models.Plugin, b []byte) error {
 	if len(p.Arch) != 0 {
 		found := false
 		for _, arch := range p.Arch {
@@ -43,31 +41,25 @@ func Install(ctx *context.Context, p *models.Plugin, a *models.Agent, f []byte) 
 		}
 	}
 
-	u, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("error getting the current user: %v", err)
+	bName := fmt.Sprintf("drlm-agent-%d-bin", a.ID)
+	pName := fmt.Sprintf("drlm-plugin-%s-%s-%s", p.Repo, p.Name, p.Version)
+
+	if _, err := ctx.MinioCli.PutObject(bName, pName, bytes.NewReader(b), -1, minio.PutObjectOptions{}); err != nil {
+		return fmt.Errorf("error uploading the plugin to minio: %v", err)
 	}
 
-	coreCli := &client.Local{}
-	coreOS, err := os.DetectOS(coreCli)
-	if err != nil {
-		return err
+	stream, ok := agent.Connections.Get(a.Host)
+	if !ok {
+		return fmt.Errorf("agent unavailable")
 	}
 
-	keysPath, err := coreOS.CmdSSHGetKeysPath(coreCli, u.Username)
-	if err != nil {
-		return err
-	}
-
-	keys := strings.Split(a.SSHHostKeys, "|||")
-	s, err := ssh.NewSessionWithKey(ctx.FS, a.Host, a.SSHPort, a.SSHUser, keysPath, keys)
-	if err != nil {
-		return fmt.Errorf("error opening the ssh session with the agent: %v", err)
-	}
-	defer s.Close()
-	agentCli := &client.SSH{Session: s}
-
-	if err := a.OS.CmdPkgInstallBinary(agentCli, a.SSHUser, fmt.Sprintf("drlm-plugin-%s-%s-%s", p.Repo, p.Name, p.Version), f); err != nil {
+	if err := stream.Send(&drlm.AgentConnectionFromCore{
+		MessageType: drlm.AgentConnectionFromCore_MESSAGE_TYPE_INSTALL_BINARY,
+		InstallBinary: &drlm.AgentConnectionFromCore_InstallBinary{
+			Bucket: bName,
+			Name:   pName,
+		},
+	}); err != nil {
 		return err
 	}
 
