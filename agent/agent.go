@@ -19,13 +19,22 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Developer notes: all the agent minio usernames are `drlm-agent-ID`
+// all the agent minio binary buckets are `drlm-agent-ID-bin`
+
 // Add connects to the Agent host, creates the drlm user and copies the keys to that user, which has to be admin
 func Add(ctx *context.Context, a *models.Agent) error {
 	a.Accepted = true
 
+	usr := fmt.Sprintf("drlm-agent-%d", a.ID)
+
 	var err error
-	if a.MinioKey, err = minio.CreateUser(ctx, fmt.Sprintf("drlm-agent-%d", a.ID)); err != nil {
+	if a.MinioKey, err = minio.CreateUser(ctx, usr); err != nil {
 		return fmt.Errorf("error creating the agent minio user: %v", err)
+	}
+
+	if _, err := minio.MakeBucketForUser(ctx, usr, usr+"-bin"); err != nil {
+		return fmt.Errorf("error creating the agent binary buclet: %v", err)
 	}
 
 	// Add the Agent to the DB

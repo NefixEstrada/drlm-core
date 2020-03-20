@@ -29,8 +29,13 @@ func CreateUser(ctx *context.Context, usr string) (key string, err error) {
 
 // MakeBucketForUser creates a new bucket and adds read and write permissions to the user
 // TODO: Add S3 compatibility
-func MakeBucketForUser(ctx *context.Context, usr string) (string, error) {
-	bName := fmt.Sprintf("drlm-%s", xid.New())
+func MakeBucketForUser(ctx *context.Context, usr string, name ...string) (string, error) {
+	var bName string
+	if len(name) == 0 {
+		bName = fmt.Sprintf("drlm-%s", xid.New())
+	} else {
+		bName = name[0]
+	}
 
 	if err := ctx.MinioCli.MakeBucket(bName, ctx.Cfg.Minio.Location); err != nil {
 		return "", fmt.Errorf("error creating the storage bucket: %v", err)
