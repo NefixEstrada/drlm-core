@@ -37,15 +37,25 @@ type Agent struct {
 	Plugins []*Plugin `gorm:"-"`
 }
 
-// AgentList returns a list with all the agents
-func AgentList(ctx *context.Context) ([]*Agent, error) {
+func agentList(ctx *context.Context, accepted bool) ([]*Agent, error) {
 	agents := []*Agent{}
 
-	if err := ctx.DB.Select("id, created_at, updated_at, host, accepted, minio_key, secret, ssh_port, ssh_user, ssh_host_keys, version, arch, os, os_version, distro, distro_version").Where(&Agent{Accepted: true}).Find(&agents).Error; err != nil {
+	if err := ctx.DB.Select("id, created_at, updated_at, host, accepted, minio_key, secret, ssh_port, ssh_user, ssh_host_keys, version, arch, os, os_version, distro, distro_version").
+		Where("accepted = ?", accepted).Find(&agents).Error; err != nil {
 		return []*Agent{}, fmt.Errorf("error getting the list of agents: %v", err)
 	}
 
 	return agents, nil
+}
+
+// AgentList returns a list with all the agents
+func AgentList(ctx *context.Context) ([]*Agent, error) {
+	return agentList(ctx, true)
+}
+
+// AgentRequestList returns a list with all the agents that have requested to join the DRLM Core
+func AgentRequestList(ctx *context.Context) ([]*Agent, error) {
+	return agentList(ctx, false)
 }
 
 // Add creates a new agent in the DB
@@ -123,4 +133,9 @@ func (a *Agent) LoadPlugins(ctx *context.Context) error {
 	a.Plugins = plugins
 
 	return nil
+}
+
+// MinioAccess returns the minio access key for the agent
+func (a *Agent) MinioAccess() string {
+	return fmt.Sprintf("drlm-agent-%d", a.ID)
 }

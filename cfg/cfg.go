@@ -83,7 +83,7 @@ func SetDefaults(v *viper.Viper) {
 		"file":  "/var/log/drlm/core.log",
 	})
 
-	v.SetEnvPrefix("DRLMCORE")
+	v.SetEnvPrefix("DRLM_CORE")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 }

@@ -5,6 +5,7 @@ package plugin
 import (
 	"bytes"
 	"fmt"
+	"log"
 
 	drlm "github.com/brainupdaters/drlm-common/pkg/proto"
 	"github.com/brainupdaters/drlm-core/agent"
@@ -53,6 +54,8 @@ func Install(ctx *context.Context, a *models.Agent, p *models.Plugin, b []byte) 
 		return fmt.Errorf("agent unavailable")
 	}
 
+	log.Println("sending msg")
+
 	if err := stream.Send(&drlm.AgentConnectionFromCore{
 		MessageType: drlm.AgentConnectionFromCore_MESSAGE_TYPE_INSTALL_BINARY,
 		InstallBinary: &drlm.AgentConnectionFromCore_InstallBinary{
@@ -60,6 +63,7 @@ func Install(ctx *context.Context, a *models.Agent, p *models.Plugin, b []byte) 
 			Name:   pName,
 		},
 	}); err != nil {
+		log.Printf("error!!!!: %v", err)
 		return err
 	}
 

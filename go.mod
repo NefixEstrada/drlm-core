@@ -2,7 +2,7 @@ module github.com/brainupdaters/drlm-core
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.3.3
-	github.com/brainupdaters/drlm-common v0.0.0-20200320105234-0b5dc7c19325
+	github.com/brainupdaters/drlm-common v0.0.0-20200504095822-3515a86b20f9
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
@@ -23,7 +23,8 @@ require (
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/crypto v0.0.0-20200311171314-f7b00557c8c4
+	go.etcd.io/etcd/v3 v3.3.0-rc.0.0.20200515055720-f1179fd70d85
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
 	google.golang.org/genproto v0.0.0-20200312145019-da6875a35672 // indirect
 	google.golang.org/grpc v1.28.0

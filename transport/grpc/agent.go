@@ -4,6 +4,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 
@@ -35,7 +36,39 @@ func (c *CoreServer) AgentAdd(ctx context.Context, req *drlm.AgentAddRequest) (*
 
 // AgentAccept accepts a request to join DRLM that has made an Agent
 func (c *CoreServer) AgentAccept(ctx context.Context, req *drlm.AgentAcceptRequest) (*drlm.AgentAcceptResponse, error) {
-	return &drlm.AgentAcceptResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	a := &models.Agent{Host: req.Host}
+
+	if err := a.Load(c.ctx); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &drlm.AgentAcceptResponse{}, status.Error(codes.NotFound, "agent not found")
+		}
+
+		return &drlm.AgentAcceptResponse{}, status.Error(codes.Unknown, err.Error())
+	}
+
+	if err := agent.Accept(c.ctx, a); err != nil {
+		if errors.Is(err, agent.ErrAgentAlreadyAccepted) {
+			return &drlm.AgentAcceptResponse{}, status.Error(codes.FailedPrecondition, err.Error())
+		}
+
+		return &drlm.AgentAcceptResponse{}, status.Errorf(codes.Unknown, "error accepting the agent: %v", err)
+	}
+
+	// The check is done inside the agent.Accept method
+	conn, _ := agent.Connections.Get(req.Host)
+	if err := conn.Send(&drlm.AgentConnectionFromCore{
+		MessageType: drlm.AgentConnectionFromCore_MESSAGE_TYPE_JOIN_RESPONSE,
+		JoinResponse: &drlm.AgentConnectionFromCore_JoinResponse{
+			Status:         drlm.AgentConnectionFromCore_JoinResponse_STATUS_ACCEPT,
+			CoreSecret:     a.Secret,
+			MinioAccessKey: a.MinioAccess(),
+			MinioSecretKey: a.MinioKey,
+		},
+	}); err != nil {
+		return &drlm.AgentAcceptResponse{}, status.Errorf(codes.Unknown, "error sending the credentials to the agent: %v", err)
+	}
+
+	return &drlm.AgentAcceptResponse{}, nil
 }
 
 // AgentInstall installs the agent binary to the agent machine
@@ -116,7 +149,25 @@ func (c *CoreServer) AgentList(ctx context.Context, req *drlm.AgentListRequest) 
 
 // AgentRequestList returns a list of all the agents that have requested to join DRLM
 func (c *CoreServer) AgentRequestList(ctx context.Context, req *drlm.AgentRequestListRequest) (*drlm.AgentRequestListResponse, error) {
-	return &drlm.AgentRequestListResponse{}, status.Error(codes.Unimplemented, "not implemented yet")
+	agents, err := models.AgentRequestList(c.ctx)
+	if err != nil {
+		return &drlm.AgentRequestListResponse{}, status.Error(codes.Unknown, err.Error())
+	}
+
+	rsp := &drlm.AgentRequestListResponse{}
+	for _, a := range agents {
+		rsp.Agents = append(rsp.Agents, &drlm.AgentRequestListResponse_Agent{
+			Host:          a.Host,
+			Version:       a.Version,
+			Arch:          drlm.Arch(a.Arch),
+			Os:            drlm.OS(a.OS),
+			OsVersion:     a.OSVersion,
+			Distro:        a.Distro,
+			DistroVersion: a.DistroVersion,
+		})
+	}
+
+	return rsp, nil
 }
 
 // AgentGet returns a specific agent by host
@@ -236,7 +287,7 @@ func (c *CoreServer) AgentConnection(stream drlm.DRLM_AgentConnectionServer) err
 		req, err := stream.Recv()
 
 		var host string
-		if req.MessageType != drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOIN_REQUEST {
+		if req != nil && req.MessageType != drlm.AgentConnectionFromAgent_MESSAGE_TYPE_JOIN_REQUEST {
 			md, ok := metadata.FromIncomingContext(stream.Context())
 			if ok && len(md.Get("tkn")) > 0 {
 				tkn := auth.Token(md.Get("tkn")[0])

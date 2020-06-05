@@ -10,6 +10,7 @@ import (
 	"github.com/brainupdaters/drlm-core/db"
 	"github.com/brainupdaters/drlm-core/db/migrations"
 	"github.com/brainupdaters/drlm-core/minio"
+	"github.com/brainupdaters/drlm-core/registry"
 
 	logger "github.com/brainupdaters/drlm-common/pkg/log"
 	log "github.com/sirupsen/logrus"
@@ -34,6 +35,7 @@ var rootCmd = &cobra.Command{
 		migrations.Migrate(ctx)
 		auth.Init(ctx)
 		minio.Init(ctx)
+		registry.Init(ctx)
 
 		cli.Main(ctx, cancel)
 	},

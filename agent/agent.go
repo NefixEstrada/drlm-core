@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os/user"
 	"path/filepath"
@@ -19,14 +20,47 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Agent error definitions
+var (
+	ErrAgentAlreadyAccepted = errors.New("agent already accepted")
+	ErrAgentUnavailable     = errors.New("agent unavailable")
+)
+
 // Developer notes: all the agent minio usernames are `drlm-agent-ID`
 // all the agent minio binary buckets are `drlm-agent-ID-bin`
 
 // Add connects to the Agent host, creates the drlm user and copies the keys to that user, which has to be admin
 func Add(ctx *context.Context, a *models.Agent) error {
-	a.Accepted = true
+	// It will get accepted in the Accept method
+	a.Accepted = false
+	if err := a.Add(ctx); err != nil {
+		return err
+	}
 
-	usr := fmt.Sprintf("drlm-agent-%d", a.ID)
+	if err := Accept(ctx, a); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AddRequest adds a new agent request
+func AddRequest(ctx *context.Context, a *models.Agent) error {
+	a.Accepted = false
+	if err := a.Add(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Accept accepts an agent to DRLM
+func Accept(ctx *context.Context, a *models.Agent) error {
+	if a.Accepted {
+		return ErrAgentAlreadyAccepted
+	}
+
+	usr := a.MinioAccess()
 
 	var err error
 	if a.MinioKey, err = minio.CreateUser(ctx, usr); err != nil {
@@ -37,21 +71,18 @@ func Add(ctx *context.Context, a *models.Agent) error {
 		return fmt.Errorf("error creating the agent binary buclet: %v", err)
 	}
 
-	// Add the Agent to the DB
-	if err := a.Add(ctx); err != nil {
+	a.Accepted = true
+	if err := a.Update(ctx); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-// AddRequest adds a new agent request
-func AddRequest(ctx *context.Context, a *models.Agent) error {
-	a.Accepted = false
-
-	if err := a.Add(ctx); err != nil {
-		return err
+	conn, ok := PendingConnections.Get(a.Host)
+	if !ok {
+		return ErrAgentUnavailable
 	}
+
+	Connections.Add(a.Host, conn)
+	PendingConnections.Delete(a.Host)
 
 	return nil
 }
